@@ -1,3 +1,5 @@
+const mongoose = require('mongoose');
+
 const agreementSchema = new mongoose.Schema({
     clientId: {
         type: mongoose.Schema.Types.ObjectId,
