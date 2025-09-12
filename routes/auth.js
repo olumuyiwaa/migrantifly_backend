@@ -104,7 +104,7 @@ router.post('/setup-account', setupAccountValidation, async (req, res) => {
         const jwtToken = jwt.sign(
             { userId: user._id, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: '24h' }  // Reduced from 7d to 24h
+            { expiresIn: process.env.JWT_EXPIRE }  // 7days
         );
 
         res.status(200).json({
@@ -161,7 +161,7 @@ router.post('/login', async (req, res) => {
         const token = jwt.sign(
             { userId: user._id, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: '7d' }
+            { expiresIn: process.env.JWT_EXPIRE }
         );
 
         res.status(200).json({
