@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Migrantifly Team - Adviser Portal</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #2c5aa0;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #2c5aa0;
+        }
+        .credentials-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .cta-button {
+            display: inline-block;
+            padding: 15px 40px;
+            background-color: #2c5aa0;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        .footer {
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+            margin-top: 30px;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div class="logo">🌍 Migrantifly</div>
+        <p style="margin: 10px 0 0 0; color: #666;">Immigration Services - Adviser Portal</p>
+    </div>
+
+    <div class="content">
+        <h2>Welcome to the Migrantifly Team!</h2>
+        <p>Hi {{adviserName}},</p>
+
+        <p>Welcome to Migrantifly Immigration Services! We're excited to have you join our team as a {{role}}.</p>
+
+        <p>Your adviser account has been created with the following credentials:</p>
+
+        <div class="credentials-box">
+            <p><strong>Email:</strong> {{email}}<br>
+                <strong>Temporary Password:</strong> {{temporaryPassword}}<br>
+                <strong>Role:</strong> {{role}}</p>
+        </div>
+
+        <p><strong>Important:</strong> Please change your password after your first login for security purposes.</p>
+
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{{portalUrl}}" class="cta-button">Access Adviser Portal</a>
+        </div>
+
+        <p><strong>Your Adviser Portal Features:</strong></p>
+        <ul>
+            <li>Client application management</li>
+            <li>Document review and approval</li>
+            <li>Communication with clients</li>
+            <li>Application progress tracking</li>
+            <li>Deadline management</li>
+            <li>INZ submission handling</li>
+        </ul>
+
+        <p><strong>Getting Started:</strong></p>
+        <ol>
+            <li>Log in to your adviser portal</li>
+            <li>Complete your profile setup</li>
+            <li>Review the adviser handbook</li>
+            <li>Familiarize yourself with the system</li>
+        </ol>
+
+        <p>If you have any questions or need assistance, please contact the admin team.</p>
+
+        <p>Welcome aboard!</p>
+
+        <p>Best regards,<br>
+            <strong>Migrantifly Admin Team</strong></p>
+    </div>
+
+    <div class="footer">
+        <p>© 2025 Migrantifly Immigration Services. All rights reserved.</p>
+        <p>Auckland, New Zealand | Email: admin@migrantifly.com</p>
+    </div>
+</div>
+</body>
+</html>

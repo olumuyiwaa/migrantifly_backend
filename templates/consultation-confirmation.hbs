@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Consultation Confirmed</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #27ae60; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background: #f9f9f9; }
+        .detail-box { background: white; padding: 15px; margin: 15px 0; border-left: 4px solid #27ae60; }
+        .footer { padding: 20px; text-align: center; color: #666; font-size: 14px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>✅ Consultation Confirmed</h1>
+    </div>
+    <div class="content">
+        <p>Dear {{clientName}},</p>
+
+        <p>Your consultation with Migrantifly has been successfully booked!</p>
+
+        <div class="detail-box">
+            <h3>Consultation Details:</h3>
+            <p><strong>Date & Time:</strong> {{consultationDate}}</p>
+            <p><strong>Method:</strong> {{method}}</p>
+            <p><strong>Reference:</strong> {{consultationId}}</p>
+        </div>
+
+        <p><strong>What to Prepare:</strong></p>
+        <ul>
+            <li>Your passport</li>
+            <li>Any relevant documents (qualifications, job offers, etc.)</li>
+            <li>Questions about your immigration goals</li>
+        </ul>
+
+        <p>Our immigration adviser will discuss your visa options and guide you through the next steps.</p>
+
+        <p>We look forward to helping you with your New Zealand immigration journey!</p>
+    </div>
+    <div class="footer">
+        <p>© 2025 Migrantifly Immigration Services</p>
+        <p>Email: info@migrantifly.com | Phone: +64 XXX XXXX</p>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Payment Confirmation</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #2ecc71; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background: #f9f9f9; }
+        .payment-details { background: white; padding: 20px; margin: 20px 0; border-radius: 5px; }
+        .amount { font-size: 24px; color: #2ecc71; font-weight: bold; }
+        .button { display: inline-block; background: #3498db; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+        .footer { padding: 20px; text-align: center; color: #666; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💳 Payment Confirmed</h1>
+        </div>
+        <div class="content">
+            <p>Dear {{clientName}},</p>
+
+            <p>Thank you! Your payment has been successfully processed.</p>
+
+            <div class="payment-details">
+                <h3>Payment Details:</h3>
+                <p><strong>Amount:</strong> <span class="amount">{{currency}} ${{amount}}</span></p>
+                <p><strong>Payment Type:</strong> {{paymentType}}</p>
+                <p><strong>Date:</strong> {{date}}</p>
+            </div>
+
+            <p>You can download your invoice using the link below:</p>
+
+            <div style="text-align: center;">
+                <a href="{{invoiceUrl}}" class="button">Download Invoice</a>
+            </div>
+
+            <p>Your visa application process will now continue. You'll receive updates as we progress through each stage.</p>
+        </div>
+        <div class="footer">
+            <p>© 2025 Migrantifly Immigration Services</p>
+        </div>
+    </div>
+</body>
+</html>
