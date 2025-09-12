@@ -4,15 +4,16 @@ const fs = require('fs').promises;
 const path = require('path');
 
 // Create transporter
-const transporter = nodemailer.createTransporter({
+const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
-    port: process.env.SMTP_PORT || 587,
-    secure: false, // true for 465, false for other ports
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: Number(process.env.SMTP_PORT) === 465, // true for 465, false for other ports
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
     }
 });
+
 
 // Load and compile email templates
 const loadTemplate = async (templateName) => {
@@ -27,6 +28,7 @@ const loadTemplate = async (templateName) => {
 };
 
 // Send email function
+
 const sendEmail = async ({ to, subject, template, data, html, text }) => {
     try {
         let emailHtml = html;
@@ -60,3 +62,4 @@ const sendEmail = async ({ to, subject, template, data, html, text }) => {
 };
 
 module.exports = { sendEmail };
+
