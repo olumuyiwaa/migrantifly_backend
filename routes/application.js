@@ -585,17 +585,6 @@ module.exports = router;
  *       200: { description: Applications returned }
  *       401: { description: Unauthorized }
  *       403: { description: Forbidden }
- *
- * /api/applications/my-applications:
- *   get:
- *     tags: [Applications]
- *     summary: List current client's applications
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200: { description: Applications returned }
- *
- * /api/applications:
  *   post:
  *     tags: [Applications]
  *     summary: Create a new application for current client
@@ -614,6 +603,15 @@ module.exports = router;
  *     responses:
  *       201: { description: Application created }
  *       400: { description: Already has active application }
+ *
+ * /api/applications/my-applications:
+ *   get:
+ *     tags: [Applications]
+ *     summary: List current client's applications
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200: { description: Applications returned }
  *
  * /api/applications/{id}/stage:
  *   patch:
