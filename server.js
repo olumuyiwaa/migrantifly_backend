@@ -7,6 +7,9 @@ const compression = require('compression');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
 
+const swaggerUi = require('swagger-ui-express');
+const swaggerJsdoc = require('swagger-jsdoc');
+
 // Load environment variables
 dotenv.config();
 
@@ -26,6 +29,30 @@ const errorHandler = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
 
 const app = express();
+const swaggerOptions = {
+    definition: {
+        openapi: '3.0.3',
+        info: {
+            title: 'Migrantifly API',
+            version: '1.0.0',
+            description: 'API documentation for Migrantifly backend',
+        },
+        servers: [
+            { url: process.env.PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 5000}` },
+        ],
+        components: {
+            securitySchemes: {
+                bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+            },
+        },
+        security: [{ bearerAuth: [] }],
+    },
+    // Point this to files where you’ll write JSDoc annotations
+    apis: ['./server.js', './routes/*.js'],
+};
+
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
+
 
 function assertMiddleware(name, mw) {
     if (typeof mw !== 'function') {
@@ -94,6 +121,45 @@ app.use('/api/notifications', auth,assertMiddleware('notificationRoutes', notifi
 // Error handling middleware
 app.use(assertMiddleware('errorHandler', errorHandler));
 
+// Serve Swagger UI and raw OpenAPI JSON
+app.use(
+  '/api/docs',
+  assertMiddleware('swaggerUi.serve', swaggerUi.serve),
+  assertMiddleware('swaggerUi.setup', swaggerUi.setup(swaggerSpec))
+);
+app.get('/api/openapi.json', (req, res) => res.json(swaggerSpec));
+
+/**
+ * @openapi
+ * /api/health:
+ *   get:
+ *     summary: Health check
+ *     tags:
+ *       - System
+ *     responses:
+ *       200:
+ *         description: Server is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: OK
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                 uptime:
+ *                   type: number
+ */
+app.get('/api/health', (req, res) => {
+    res.status(200).json({
+        status: 'OK',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+    });
+});
 // 404 handler
 app.use('*', (req, res) => {
     res.status(404).json({
