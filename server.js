@@ -21,15 +21,22 @@ const applicationRoutes = require('./routes/application');
 const notificationRoutes = require('./routes/notification');
 
 // Import middleware
-const auth = require('./middleware/auth');
+const { auth } = require('./middleware/auth');
 const errorHandler = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
 
 const app = express();
 
+function assertMiddleware(name, mw) {
+    if (typeof mw !== 'function') {
+        console.error(`[Startup] ${name} is not a middleware function. typeof: ${typeof mw}`);
+    }
+    return mw;
+}
+
 // Security middleware
-app.use(helmet());
-app.use(compression());
+app.use(assertMiddleware ('helmet',helmet()));
+app.use(assertMiddleware ('compression',compression()));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -37,20 +44,20 @@ const limiter = rateLimit({
     max: 100, // limit each IP to 100 requests per windowMs
     message: 'Too many requests from this IP, please try again later.'
 });
-app.use(limiter);
+app.use(assertMiddleware('rateLimit', limiter));
 
 // CORS configuration
-app.use(cors({
+app.use(assertMiddleware ('cors',cors({
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
     credentials: true
-}));
+})));
 
 // Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(assertMiddleware('express.json', express.json({ limit: '10mb' })));
+app.use(assertMiddleware('express.urlencoded', express.urlencoded({ extended: true, limit: '10mb' })));
 
 // Logging
-app.use(morgan('combined', { stream: { write: message => logger.info(message.trim()) } }));
+app.use(assertMiddleware('morgan', morgan('combined', { stream: { write: message => logger.info(message.trim()) } })));
 
 // MongoDB connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/migrantifly', {
@@ -75,17 +82,17 @@ app.get('/api/health', (req, res) => {
 });
 
 // API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/client', auth, clientRoutes);
-app.use('/api/admin', auth, adminRoutes);
-app.use('/api/consultation', consultationRoutes);
-app.use('/api/documents', auth, documentRoutes);
-app.use('/api/payments', auth, paymentRoutes);
-app.use('/api/applications', auth, applicationRoutes);
-app.use('/api/notifications', auth, notificationRoutes);
+app.use('/api/auth',assertMiddleware('authRoutes', authRoutes));
+app.use('/api/client', auth,assertMiddleware('clientRoutes', clientRoutes));
+app.use('/api/admin', auth,assertMiddleware('adminRoutes', adminRoutes));
+app.use('/api/consultation', assertMiddleware('consultationRoutes',consultationRoutes));
+app.use('/api/documents', auth,assertMiddleware('documentRoutes', documentRoutes));
+app.use('/api/payments', auth, assertMiddleware('paymentRoutes',paymentRoutes));
+app.use('/api/applications', auth, assertMiddleware('applicationRoutes',applicationRoutes));
+app.use('/api/notifications', auth,assertMiddleware('notificationRoutes', notificationRoutes));
 
 // Error handling middleware
-app.use(errorHandler);
+app.use(assertMiddleware('errorHandler', errorHandler));
 
 // 404 handler
 app.use('*', (req, res) => {
