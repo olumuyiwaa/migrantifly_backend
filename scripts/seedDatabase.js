@@ -1,18 +1,29 @@
-
+// scripts/seedDatabase.js
+const path = require('path');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 
-// Load environment variables
-dotenv.config();
+// Load env (explicit path to ensure it works on Render/CI)
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-// Import models
-const User = require('../models/User');
-const Application = require('../models/Application');
-const Document = require('../models/Document');
-const Payment = require('../models/Payment');
-const Consultation = require('../models/Consultation');
-const Agreement = require('../models/Agreement');
-const Notification = require('../models/Notification');
+// Robust model loader: use existing compiled model if present, otherwise require the file
+const loadModel = (name, file) => {
+    try {
+        return mongoose.models[name] || require(path.join(__dirname, '..', 'models', file));
+    } catch (e) {
+        console.error(`Failed to load model ${name} from ${file}:`, e.message);
+        throw e;
+    }
+};
+
+// Import models directly (not from an index)
+const User = loadModel('User', 'User');
+const Application = loadModel('Application', 'Application');
+const Document = loadModel('Document', 'Document');
+const Payment = loadModel('Payment', 'Payment');
+const Consultation = loadModel('Consultation', 'Consultation');
+const Agreement = loadModel('Agreement', 'Agreement');
+const Notification = loadModel('Notification', 'Notification');
 
 const seedDatabase = async () => {
     try {
@@ -20,15 +31,15 @@ const seedDatabase = async () => {
         await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/migrantifly');
         console.log('Connected to MongoDB');
 
-        // Clear existing data
-        await User.deleteMany({});
-        await Application.deleteMany({});
-        await Document.deleteMany({});
-        await Payment.deleteMany({});
-        await Consultation.deleteMany({});
-        await Agreement.deleteMany({});
-        await Notification.deleteMany({});
+        // Sanity check to make sure these are real models
+        for (const [name, Model] of Object.entries({ User, Application, Document, Payment, Consultation, Agreement, Notification })) {
+            if (!Model || typeof Model !== 'function' || typeof Model.deleteMany !== 'function') {
+                throw new Error(`${name} is not a valid Mongoose model. Check the model export and import path.`);
+            }
+        }
 
+        // Clear existing data (drop the whole DB to avoid per-model issues)
+        await mongoose.connection.dropDatabase();
         console.log('Cleared existing data');
 
         // Create admin user
@@ -36,11 +47,7 @@ const seedDatabase = async () => {
             email: 'admin@migrantifly.com',
             password: 'admin123',
             role: 'admin',
-            profile: {
-                firstName: 'Admin',
-                lastName: 'User',
-                phone: '+64-21-123-4567'
-            },
+            profile: { firstName: 'Admin', lastName: 'User', phone: '+64-21-123-4567' },
             isEmailVerified: true,
             isActive: true
         });
@@ -52,11 +59,7 @@ const seedDatabase = async () => {
             email: 'adviser@migrantifly.com',
             password: 'adviser123',
             role: 'adviser',
-            profile: {
-                firstName: 'Jane',
-                lastName: 'Smith',
-                phone: '+64-21-765-4321'
-            },
+            profile: { firstName: 'Jane', lastName: 'Smith', phone: '+64-21-765-4321' },
             isEmailVerified: true,
             isActive: true
         });
@@ -64,7 +67,7 @@ const seedDatabase = async () => {
         console.log('Created adviser user');
 
         // Create sample client users
-        const clients = [
+        const clientsData = [
             {
                 email: 'john.doe@example.com',
                 password: 'password123',
@@ -108,17 +111,11 @@ const seedDatabase = async () => {
                 isActive: true
             }
         ];
-
-        const createdClients = [];
-        for (const clientData of clients) {
-            const client = new User(clientData);
-            await client.save();
-            createdClients.push(client);
-        }
+        const createdClients = await User.insertMany(clientsData);
         console.log('Created sample client users');
 
         // Create sample consultations
-        const consultations = [
+        const consultationsData = [
             {
                 clientId: createdClients[0]._id,
                 adviserId: adviserUser._id,
@@ -142,17 +139,11 @@ const seedDatabase = async () => {
                 notes: 'Client inquiry about partner visa options.'
             }
         ];
-
-        const createdConsultations = [];
-        for (const consultationData of consultations) {
-            const consultation = new Consultation(consultationData);
-            await consultation.save();
-            createdConsultations.push(consultation);
-        }
+        const createdConsultations = await Consultation.insertMany(consultationsData);
         console.log('Created sample consultations');
 
         // Create sample applications
-        const applications = [
+        const applicationsData = [
             {
                 clientId: createdClients[0]._id,
                 adviserId: adviserUser._id,
@@ -161,24 +152,9 @@ const seedDatabase = async () => {
                 stage: 'documents_completed',
                 progress: 40,
                 timeline: [
-                    {
-                        stage: 'consultation',
-                        date: new Date('2025-01-15'),
-                        notes: 'Initial consultation completed',
-                        updatedBy: adviserUser._id
-                    },
-                    {
-                        stage: 'deposit_paid',
-                        date: new Date('2025-01-16'),
-                        notes: 'Deposit payment received',
-                        updatedBy: adviserUser._id
-                    },
-                    {
-                        stage: 'documents_completed',
-                        date: new Date('2025-01-20'),
-                        notes: 'All required documents uploaded and approved',
-                        updatedBy: adviserUser._id
-                    }
+                    { stage: 'consultation', date: new Date('2025-01-15'), notes: 'Initial consultation completed', updatedBy: adviserUser._id },
+                    { stage: 'deposit_paid', date: new Date('2025-01-16'), notes: 'Deposit payment received', updatedBy: adviserUser._id },
+                    { stage: 'documents_completed', date: new Date('2025-01-20'), notes: 'All required documents uploaded and approved', updatedBy: adviserUser._id }
                 ]
             },
             {
@@ -189,32 +165,16 @@ const seedDatabase = async () => {
                 stage: 'deposit_paid',
                 progress: 20,
                 timeline: [
-                    {
-                        stage: 'consultation',
-                        date: new Date('2025-01-20'),
-                        notes: 'Initial consultation completed',
-                        updatedBy: adviserUser._id
-                    },
-                    {
-                        stage: 'deposit_paid',
-                        date: new Date('2025-01-21'),
-                        notes: 'Deposit payment received',
-                        updatedBy: adviserUser._id
-                    }
+                    { stage: 'consultation', date: new Date('2025-01-20'), notes: 'Initial consultation completed', updatedBy: adviserUser._id },
+                    { stage: 'deposit_paid', date: new Date('2025-01-21'), notes: 'Deposit payment received', updatedBy: adviserUser._id }
                 ]
             }
         ];
-
-        const createdApplications = [];
-        for (const applicationData of applications) {
-            const application = new Application(applicationData);
-            await application.save();
-            createdApplications.push(application);
-        }
+        const createdApplications = await Application.insertMany(applicationsData);
         console.log('Created sample applications');
 
         // Create sample documents
-        const documents = [
+        const documentsData = [
             {
                 applicationId: createdApplications[0]._id,
                 clientId: createdClients[0]._id,
@@ -246,15 +206,11 @@ const seedDatabase = async () => {
                 isRequired: true
             }
         ];
-
-        for (const documentData of documents) {
-            const document = new Document(documentData);
-            await document.save();
-        }
+        await Document.insertMany(documentsData);
         console.log('Created sample documents');
 
         // Create sample payments
-        const payments = [
+        const paymentsData = [
             {
                 clientId: createdClients[0]._id,
                 applicationId: createdApplications[0]._id,
@@ -282,15 +238,11 @@ const seedDatabase = async () => {
                 invoiceUrl: 'https://example.com/invoices/INV-2025-002.pdf'
             }
         ];
-
-        for (const paymentData of payments) {
-            const payment = new Payment(paymentData);
-            await payment.save();
-        }
+        await Payment.insertMany(paymentsData);
         console.log('Created sample payments');
 
         // Create sample notifications
-        const notifications = [
+        const notificationsData = [
             {
                 userId: createdClients[0]._id,
                 applicationId: createdApplications[0]._id,
@@ -312,11 +264,7 @@ const seedDatabase = async () => {
                 actionRequired: false
             }
         ];
-
-        for (const notificationData of notifications) {
-            const notification = new Notification(notificationData);
-            await notification.save();
-        }
+        await Notification.insertMany(notificationsData);
         console.log('Created sample notifications');
 
         console.log('\n=== SEED DATA SUMMARY ===');
@@ -326,7 +274,6 @@ const seedDatabase = async () => {
         console.log('Client 2: jane.wilson@example.com / password123');
         console.log('Created 2 applications with sample data');
         console.log('Database seeding completed successfully!');
-
     } catch (error) {
         console.error('Error seeding database:', error);
     } finally {
