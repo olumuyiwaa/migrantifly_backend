@@ -1,6 +1,5 @@
 
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
 const dotenv = require('dotenv');
 
 // Load environment variables
@@ -8,7 +7,12 @@ dotenv.config();
 
 // Import models
 const User = require('../models/User');
-const { Application, Document, Payment, Consultation, Agreement, Notification } = require('../models');
+const Application = require('../models/Application');
+const Document = require('../models/Document');
+const Payment = require('../models/Payment');
+const Consultation = require('../models/Consultation');
+const Agreement = require('../models/Agreement');
+const Notification = require('../models/Notification');
 
 const seedDatabase = async () => {
     try {

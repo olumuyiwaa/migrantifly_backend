@@ -1,5 +1,11 @@
 const express = require('express');
-const { User, Application, Document, Payment, Consultation } = require('../models');
+const User = require('../models/User');
+const Application = require('../models/Application');
+const Document = require('../models/Document');
+const Payment = require('../models/Payment');
+const Consultation = require('../models/Consultation');
+const Agreement = require('../models/Agreement');
+const Notification = require('../models/Notification');
 const { auth, authorize } = require('../middleware/auth');
 const { auditLogger } = require('../middleware/auditLog');
 
