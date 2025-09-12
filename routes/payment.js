@@ -317,3 +317,78 @@ async function handlePaymentFailure(paymentIntent) {
 }
 
 module.exports = router;
+
+
+/**
+ * @openapi
+ * tags:
+ *   - name: Payments
+ *     description: Payment processing
+ *
+ * /api/payments/create-deposit-payment:
+ *   post:
+ *     tags: [Payments]
+ *     summary: Create a Stripe PaymentIntent for deposit
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               applicationId: { type: string }
+ *               amount: { type: number, minimum: 0.01 }
+ *             required: [applicationId, amount]
+ *     responses:
+ *       200: { description: Client secret returned }
+ *       400: { description: Validation error }
+ *       404: { description: Application not found }
+ *
+ * /api/payments/confirm-payment:
+ *   post:
+ *     tags: [Payments]
+ *     summary: Confirm a completed payment
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               paymentId: { type: string }
+ *               paymentIntentId: { type: string }
+ *             required: [paymentId, paymentIntentId]
+ *     responses:
+ *       200: { description: Payment confirmed and invoice generated }
+ *       400: { description: Payment failed }
+ *       404: { description: Payment not found }
+ *
+ * /api/payments/history:
+ *   get:
+ *     tags: [Payments]
+ *     summary: Get payment history
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200: { description: Payment list returned }
+ *
+ * /api/payments/webhook:
+ *   post:
+ *     tags: [Payments]
+ *     summary: Stripe webhook endpoint
+ *     description: This endpoint is called by Stripe. Do not add authentication.
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200: { description: Webhook received }
+ *       400: { description: Invalid signature }
+ */

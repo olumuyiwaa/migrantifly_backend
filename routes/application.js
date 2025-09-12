@@ -555,3 +555,200 @@ function getRequiredDocuments(visaType) {
 }
 
 module.exports = router;
+
+/**
+ * @openapi
+ * tags:
+ *   - name: Applications
+ *     description: Application lifecycle operations
+ *
+ * /api/applications:
+ *   get:
+ *     tags: [Applications]
+ *     summary: List applications (admin/adviser)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: stage
+ *         schema: { type: string }
+ *       - in: query
+ *         name: visaType
+ *         schema: { type: string }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1, minimum: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 20, minimum: 1, maximum: 100 }
+ *     responses:
+ *       200: { description: Applications returned }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden }
+ *
+ * /api/applications/my-applications:
+ *   get:
+ *     tags: [Applications]
+ *     summary: List current client's applications
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200: { description: Applications returned }
+ *
+ * /api/applications:
+ *   post:
+ *     tags: [Applications]
+ *     summary: Create a new application for current client
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               visaType: { type: string }
+ *               consultationId: { type: string }
+ *             required: [visaType]
+ *     responses:
+ *       201: { description: Application created }
+ *       400: { description: Already has active application }
+ *
+ * /api/applications/{id}/stage:
+ *   patch:
+ *     tags: [Applications]
+ *     summary: Update application stage (admin/adviser)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               stage: { type: string }
+ *               notes: { type: string }
+ *             required: [stage]
+ *     responses:
+ *       200: { description: Stage updated }
+ *       404: { description: Application not found }
+ *
+ * /api/applications/{id}/submit-to-inz:
+ *   patch:
+ *     tags: [Applications]
+ *     summary: Submit application to INZ (admin/adviser)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               inzReference: { type: string }
+ *             required: [inzReference]
+ *     responses:
+ *       200: { description: Submitted to INZ }
+ *       400: { description: Pending required documents }
+ *
+ * /api/applications/{id}/rfi:
+ *   post:
+ *     tags: [Applications]
+ *     summary: Add Request for Information (RFI)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               description: { type: string }
+ *               dueDate: { type: string, format: date-time }
+ *             required: [description, dueDate]
+ *     responses:
+ *       200: { description: RFI added }
+ *
+ * /api/applications/{id}/ppi:
+ *   post:
+ *     tags: [Applications]
+ *     summary: Add Potentially Prejudicial Information (PPI)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               description: { type: string }
+ *               dueDate: { type: string, format: date-time }
+ *             required: [description, dueDate]
+ *     responses:
+ *       200: { description: PPI added }
+ *
+ * /api/applications/{id}/decision:
+ *   patch:
+ *     tags: [Applications]
+ *     summary: Record final decision
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               outcome: { type: string, enum: [approved, declined] }
+ *               decisionLetter: { type: string }
+ *               notes: { type: string }
+ *             required: [outcome]
+ *     responses:
+ *       200: { description: Decision recorded }
+ *
+ * /api/applications/{id}/dashboard:
+ *   get:
+ *     tags: [Applications]
+ *     summary: Get application dashboard view
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Dashboard data returned }
+ *       404: { description: Application not found }
+ */

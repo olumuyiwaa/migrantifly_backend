@@ -193,3 +193,87 @@ router.patch('/:id/complete',
 );
 
 module.exports = router;
+
+/**
+ * @openapi
+ * tags:
+ *   - name: Consultations
+ *     description: Consultation booking and management
+ *
+ * /api/consultation/book:
+ *   post:
+ *     tags: [Consultations]
+ *     summary: Book a consultation (public)
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               clientEmail: { type: string, format: email }
+ *               clientName: { type: string }
+ *               clientPhone: { type: string }
+ *               preferredDate: { type: string, example: "2025-01-31" }
+ *               preferredTime: { type: string, example: "10:00" }
+ *               method: { type: string, enum: ["online","phone","in_person"] }
+ *               message: { type: string }
+ *             required: [clientEmail, clientName, preferredDate, preferredTime, method]
+ *     responses:
+ *       201: { description: Consultation booked }
+ *       500: { description: Error booking consultation }
+ *
+ * /api/consultation:
+ *   get:
+ *     tags: [Consultations]
+ *     summary: List consultations (admin/adviser)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema: { type: string }
+ *       - in: query
+ *         name: date
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, minimum: 1, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+ *     responses:
+ *       200: { description: Consultations returned }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden }
+ *
+ * /api/consultation/{id}/complete:
+ *   patch:
+ *     tags: [Consultations]
+ *     summary: Complete a consultation and optionally create setup token
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               notes: { type: string }
+ *               visaPathways:
+ *                 type: array
+ *                 items: { type: string }
+ *               proceedWithApplication: { type: boolean }
+ *     responses:
+ *       200: { description: Consultation completed }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden }
+ *       404: { description: Not found }
+ */

@@ -90,3 +90,41 @@ router.patch('/profile', auth, authorize('client'), async (req, res) => {
 });
 
 module.exports = router;
+
+/**
+ * @openapi
+ * tags:
+ *   - name: Client
+ *     description: Client portal endpoints
+ *
+ * /api/client/dashboard:
+ *   get:
+ *     tags: [Client]
+ *     summary: Get client dashboard data
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200: { description: Dashboard data returned }
+ *       401: { description: Unauthorized }
+ *
+ * /api/client/profile:
+ *   patch:
+ *     tags: [Client]
+ *     summary: Update client profile
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               profile:
+ *                 type: object
+ *                 additionalProperties: true
+ *             required: [profile]
+ *     responses:
+ *       200: { description: Profile updated }
+ *       401: { description: Unauthorized }
+ */

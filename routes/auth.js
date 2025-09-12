@@ -201,3 +201,91 @@ router.post('/logout', auth, (req, res) => {
 });
 
 module.exports = router;
+
+/**
+ * @openapi
+ * tags:
+ *   - name: Auth
+ *     description: Authentication endpoints
+ *
+ * /api/auth/generate-token:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Generate client setup token after consultation
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               consultationId: { type: string }
+ *             required: [email]
+ *     responses:
+ *       200:
+ *         description: Setup link sent
+ *       500:
+ *         description: Error generating token
+ *
+ * /api/auth/setup-account:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Complete account setup with token
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               token: { type: string }
+ *               password: { type: string, format: password, minLength: 8 }
+ *               profile:
+ *                 type: object
+ *                 additionalProperties: true
+ *             required: [token, password, profile]
+ *     responses:
+ *       200: { description: Account setup completed }
+ *       400: { description: Validation error or invalid token }
+ *
+ * /api/auth/login:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Login with email and password
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               password: { type: string, format: password }
+ *             required: [email, password]
+ *     responses:
+ *       200: { description: Login successful }
+ *       401: { description: Invalid credentials }
+ *
+ * /api/auth/me:
+ *   get:
+ *     tags: [Auth]
+ *     summary: Get current authenticated user
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200: { description: Current user data }
+ *       401: { description: Unauthorized }
+ *
+ * /api/auth/logout:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Logout current user
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200: { description: Logged out successfully }
+ */

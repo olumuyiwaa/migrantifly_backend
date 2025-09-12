@@ -123,3 +123,68 @@ router.delete('/:id', auth, async (req, res) => {
 });
 
 module.exports = router;
+
+/**
+ * @openapi
+ * tags:
+ *   - name: Notifications
+ *     description: User notifications
+ *
+ * /api/notifications:
+ *   get:
+ *     tags: [Notifications]
+ *     summary: Get notifications for current user
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1, minimum: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 20, minimum: 1, maximum: 100 }
+ *       - in: query
+ *         name: unreadOnly
+ *         schema: { type: boolean, default: false }
+ *     responses:
+ *       200: { description: Notifications returned }
+ *
+ * /api/notifications/{id}/read:
+ *   patch:
+ *     tags: [Notifications]
+ *     summary: Mark a notification as read
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Marked as read }
+ *       404: { description: Not found }
+ *
+ * /api/notifications/mark-all-read:
+ *   patch:
+ *     tags: [Notifications]
+ *     summary: Mark all notifications as read
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200: { description: All marked as read }
+ *
+ * /api/notifications/{id}:
+ *   delete:
+ *     tags: [Notifications]
+ *     summary: Delete a notification
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Deleted }
+ *       404: { description: Not found }
+ */

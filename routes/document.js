@@ -495,3 +495,121 @@ function getDocumentChecklist(visaType) {
 }
 
 module.exports = router;
+
+/**
+ * @openapi
+ * tags:
+ *   - name: Documents
+ *     description: Document management
+ *
+ * /api/documents/application/{applicationId}:
+ *   get:
+ *     tags: [Documents]
+ *     summary: List documents for an application
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: applicationId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Documents returned }
+ *       403: { description: Access denied }
+ *       404: { description: Application not found }
+ *
+ * /api/documents/upload:
+ *   post:
+ *     tags: [Documents]
+ *     summary: Upload a document
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               applicationId: { type: string }
+ *               documentType: { type: string }
+ *               expiryDate: { type: string, format: date }
+ *               document:
+ *                 type: string
+ *                 format: binary
+ *             required: [applicationId, documentType, document]
+ *     responses:
+ *       200: { description: Document uploaded }
+ *       400: { description: Validation error }
+ *
+ * /api/documents/{id}/review:
+ *   patch:
+ *     tags: [Documents]
+ *     summary: Review a document (admin/adviser)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status: { type: string, enum: [approved, rejected, pending] }
+ *               reviewNotes: { type: string }
+ *             required: [status]
+ *     responses:
+ *       200: { description: Review saved }
+ *       404: { description: Document not found }
+ *
+ * /api/documents/{id}:
+ *   delete:
+ *     tags: [Documents]
+ *     summary: Delete a document
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Document deleted }
+ *       403: { description: Access denied }
+ *       404: { description: Not found }
+ *
+ * /api/documents/{id}/download:
+ *   get:
+ *     tags: [Documents]
+ *     summary: Get a secure download URL for a document
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Download info returned }
+ *       403: { description: Access denied }
+ *       404: { description: Not found }
+ *
+ * /api/documents/checklist/{visaType}:
+ *   get:
+ *     tags: [Documents]
+ *     summary: Get document checklist for a visa type
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: visaType
+ *         required: true
+ *         schema: { type: string, example: work }
+ *     responses:
+ *       200: { description: Checklist returned }
+ */

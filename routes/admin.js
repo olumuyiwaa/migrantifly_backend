@@ -290,3 +290,101 @@ router.get('/system-health',
 );
 
 module.exports = router;
+
+/**
+ * @openapi
+ * tags:
+ *   - name: Admin
+ *     description: Admin and adviser operations
+ *
+ * /api/admin/dashboard:
+ *   get:
+ *     tags: [Admin]
+ *     summary: Get admin dashboard statistics
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200: { description: Dashboard stats returned }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden }
+ *
+ * /api/admin/users:
+ *   get:
+ *     tags: [Admin]
+ *     summary: List users
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: role
+ *         schema: { type: string, enum: ["client","adviser","admin"] }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1, minimum: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 20, minimum: 1, maximum: 100 }
+ *       - in: query
+ *         name: search
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Users returned }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden }
+ *
+ * /api/admin/create-adviser:
+ *   post:
+ *     tags: [Admin]
+ *     summary: Create a new adviser account
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               password: { type: string, format: password, minLength: 8 }
+ *               profile:
+ *                 type: object
+ *                 additionalProperties: true
+ *             required: [email, password, profile]
+ *     responses:
+ *       201: { description: Adviser created }
+ *       400: { description: User exists or validation error }
+ *
+ * /api/admin/applications/{id}/assign-adviser:
+ *   patch:
+ *     tags: [Admin]
+ *     summary: Assign an adviser to an application
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               adviserId: { type: string }
+ *             required: [adviserId]
+ *     responses:
+ *       200: { description: Adviser assigned }
+ *       404: { description: Application or adviser not found }
+ *
+ * /api/admin/system-health:
+ *   get:
+ *     tags: [Admin]
+ *     summary: System health details
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200: { description: Health details returned }
+ */
