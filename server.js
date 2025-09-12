@@ -55,11 +55,15 @@ const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
 
 function assertMiddleware(name, mw) {
-    if (typeof mw !== 'function') {
-        console.error(`[Startup] ${name} is not a middleware function. typeof: ${typeof mw}`);
+    const isFn = typeof mw === 'function';
+    const isArrayOfFns = Array.isArray(mw) && mw.every(item => typeof item === 'function');
+
+    if (!isFn && !isArrayOfFns) {
+        console.error(`[Startup] ${name} is not a middleware function. typeof: ${Array.isArray(mw) ? 'array' : typeof mw}`);
     }
     return mw;
 }
+
 
 // Security middleware
 app.use(assertMiddleware ('helmet',helmet()));
