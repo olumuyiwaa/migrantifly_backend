@@ -169,7 +169,7 @@ const seedDatabase = async () => {
         await Application.insertMany(applicationsData);
         console.log('Created sample applications');
 
-        // Documents
+        // Documents seeding
         const documentsData = [
               {
                   applicationId: createdApplications[0]._id,
