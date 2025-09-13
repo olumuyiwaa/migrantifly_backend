@@ -79,9 +79,11 @@ app.use(assertMiddleware('rateLimit', limiter));
 
 // CORS configuration
 app.use(assertMiddleware ('cors',cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    credentials: true
+    origin: '*',
+    methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
+    allowedHeaders: ['Content-Type','Authorization'],
 })));
+app.options('*', (req, res) => res.sendStatus(200));
 
 // Body parsing middleware
 app.use(assertMiddleware('express.json', express.json({ limit: '10mb' })));
