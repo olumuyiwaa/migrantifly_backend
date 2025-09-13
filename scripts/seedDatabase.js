@@ -135,7 +135,7 @@ const seedDatabase = async () => {
               }
           ]
         ;
-        const createdConsultations = await Consultation.insertMany(consultationsData);
+        await Consultation.insertMany(consultationsData);
         console.log('Created sample consultations');
 
         // Applications
@@ -165,9 +165,8 @@ const seedDatabase = async () => {
                       { stage: 'deposit_paid', date: new Date('2025-01-21'), notes: 'Deposit payment received', updatedBy: adviserUser._id }
                   ]
               }
-          ]
-        ;
-        const createdApplications = await Application.insertMany(applicationsData);
+          ];
+        await Application.insertMany(applicationsData);
         console.log('Created sample applications');
 
         // Documents
