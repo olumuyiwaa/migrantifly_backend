@@ -62,9 +62,53 @@ const seedDatabase = async () => {
         console.log('Created adviser user');
 
         // Create sample clients
-        const clientsData = [ /* ... unchanged ... */ ];
-        const createdClients = await User.insertMany(clientsData);
+        const clientsData = [
+            {
+                email: 'john.doe@example.com',
+                password: 'password123',
+                role: 'client',
+                profile: {
+                    firstName: 'John',
+                    lastName: 'Doe',
+                    phone: '+64-21-111-2222',
+                    dateOfBirth: new Date('1985-06-15'),
+                    nationality: 'British',
+                    address: {
+                        street: '123 Queen Street',
+                        city: 'Auckland',
+                        state: 'Auckland',
+                        country: 'New Zealand',
+                        postalCode: '1010'
+                    }
+                },
+                isEmailVerified: true,
+                isActive: true
+            },
+            {
+                email: 'jane.wilson@example.com',
+                password: 'password123',
+                role: 'client',
+                profile: {
+                    firstName: 'Jane',
+                    lastName: 'Wilson',
+                    phone: '+64-21-333-4444',
+                    dateOfBirth: new Date('1990-03-20'),
+                    nationality: 'Canadian',
+                    address: {
+                        street: '456 Collins Street',
+                        city: 'Wellington',
+                        state: 'Wellington',
+                        country: 'New Zealand',
+                        postalCode: '6011'
+                    }
+                },
+                isEmailVerified: true,
+                isActive: true
+            }
+        ];
+        await User.insertMany(clientsData);
         console.log('Created sample client users');
+
 
         // Consultations
         const consultationsData = [ /* ... unchanged ... */ ];
