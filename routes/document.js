@@ -404,6 +404,68 @@ router.get('/checklist/:visaType', auth, async (req, res) => {
     }
 });
 
+// List all documents (admin/adviser)
+router.get('/',
+  auth,
+  authorize('admin', 'adviser'),
+  async (req, res) => {
+      try {
+          const {
+              applicationId,
+              clientId,
+              status,
+              type,
+              search,
+              page = 1,
+              limit = 20
+          } = req.query;
+
+          const filter = {};
+          if (applicationId) filter.applicationId = applicationId;
+          if (clientId) filter.clientId = clientId;
+          if (status) filter.status = status;
+          if (type) filter.type = type;
+
+          if (search) {
+              filter.$or = [
+                  { name: { $regex: search, $options: 'i' } },
+                  { originalName: { $regex: search, $options: 'i' } }
+              ];
+          }
+
+          const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+          const pageSize = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+
+          const [documents, total] = await Promise.all([
+              Document.find(filter)
+                .populate('reviewedBy', 'email profile')
+                .populate('applicationId', 'visaType clientId')
+                .populate('clientId', 'email profile')
+                .sort({ createdAt: -1 })
+                .limit(pageSize)
+                .skip((pageNum - 1) * pageSize),
+              Document.countDocuments(filter)
+          ]);
+
+          res.status(200).json({
+              success: true,
+              data: {
+                  documents,
+                  total,
+                  totalPages: Math.ceil(total / pageSize),
+                  currentPage: pageNum
+              }
+          });
+      } catch (error) {
+          res.status(500).json({
+              success: false,
+              message: 'Error fetching documents',
+              error: error.message
+          });
+      }
+  }
+);
+
 // Helper function to get document checklist
 function getDocumentChecklist(visaType) {
     const commonDocs = [
@@ -501,6 +563,47 @@ module.exports = router;
  * tags:
  *   - name: Documents
  *     description: Document management
+ *
+ * /api/documents:
+ *     get:
+ *       tags: [Documents]
+ *       summary: Get all documents (admin/adviser)
+ *       security:
+ *         - bearerAuth: []
+ *       parameters:
+ *         - in: query
+ *           name: applicationId
+ *           schema: { type: string }
+ *         - in: query
+ *           name: clientId
+ *           schema: { type: string }
+ *         - in: query
+ *           name: status
+ *           schema:
+ *             type: string
+ *             enum: [pending, approved, rejected, under_review]
+ *         - in: query
+ *           name: type
+ *           schema:
+ *             type: string
+ *             description: Document type (e.g., passport, photo, etc.)
+ *         - in: query
+ *           name: search
+ *           schema: { type: string }
+ *           description: Case-insensitive search by name/originalName
+ *         - in: query
+ *           name: page
+ *           schema: { type: integer, minimum: 1, default: 1 }
+ *         - in: query
+ *           name: limit
+ *           schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+ *       responses:
+ *         200:
+ *           description: Documents returned
+ *         401:
+ *           description: Unauthorized
+ *         403:
+ *           description: Forbidden
  *
  * /api/documents/application/{applicationId}:
  *   get:
