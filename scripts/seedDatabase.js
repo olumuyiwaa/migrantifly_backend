@@ -102,8 +102,13 @@ const seedDatabase = async () => {
                 isActive: true
             }
         ];
-        const createdClients = await User.insertMany(clientsData);
-        console.log('Created sample client users');
+            const createdClients = [];
+            for (const client of clientsData) {
+                const user = new User(client);
+                await user.save(); // triggers pre-save hook for hashing
+                createdClients.push(user);
+            }
+            console.log('Created sample client users');
 
         // Create sample consultations
         const consultationsData = [
