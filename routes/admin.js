@@ -94,7 +94,7 @@ router.get('/dashboard',
 // Get all users
 router.get('/users',
     auth,
-    authorize('admin'),
+    authorize('admin', 'adviser'),
     async (req, res) => {
         try {
             const { role, page = 1, limit = 20, search } = req.query;
