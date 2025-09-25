@@ -624,7 +624,19 @@ const seedDatabase = async () => {
 
         // Create sample applications
         const applicationsData = [
-          // 1. Just consulted + deposit paid
+            {
+                clientId: createdClients[0]._id,
+                adviserId: adviserUser._id,
+                consultationId: createdConsultations[0]._id,
+                visaType: 'work',
+                stage: 'documents_completed',
+                progress: 40,
+                timeline: [
+                    { stage: 'consultation', date: new Date('2025-01-15'), notes: 'Initial consultation completed', updatedBy: adviserUser._id },
+                    { stage: 'deposit_paid', date: new Date('2025-01-16'), notes: 'Deposit payment received', updatedBy: adviserUser._id },
+                    { stage: 'documents_completed', date: new Date('2025-01-20'), notes: 'All required documents uploaded and approved', updatedBy: adviserUser._id }
+                ]
+            },
             {
                 clientId: createdClients[1]._id,
                 adviserId: adviserUser._id,
@@ -633,15 +645,21 @@ const seedDatabase = async () => {
                 stage: 'deposit_paid',
                 progress: 20,
                 inzReference: 'INZ-REF-00123',
-                submissionDate: new Date('2025-01-25'),
-                decisionDate: null,
-                outcome: 'pending',
-                decisionLetter: null,
+                submissionDate: new Date('2024-12-01'),
+                decisionDate: new Date('2025-02-15'),
+                outcome: 'approved',
+                decisionLetter: '/uploads/letters/decision-00999.pdf',
                 deadlines: [
                     {
                         type: 'medical',
                         description: 'Medical examination submission',
                         dueDate: new Date('2025-02-15'),
+                        completed: false
+                    },
+                    {
+                        type: 'document',
+                        description: 'Upload police certificate',
+                        dueDate: new Date('2025-02-20'),
                         completed: false
                     }
                 ],
@@ -656,139 +674,6 @@ const seedDatabase = async () => {
                         stage: 'deposit_paid',
                         date: new Date('2025-01-21'),
                         notes: 'Deposit payment received',
-                        updatedBy: adviserUser._id
-                    }
-                ]
-            },
-
-            // 2. Documents submitted and sent to INZ
-            {
-                clientId: createdClients[2]._id,
-                adviserId: adviserUser._id,
-                consultationId: createdConsultations[2]._id,
-                visaType: 'work',
-                stage: 'submitted_to_inz',
-                progress: 60,
-                inzReference: 'INZ-REF-00456',
-                submissionDate: new Date('2025-02-01'),
-                decisionDate: null,
-                outcome: 'pending',
-                decisionLetter: null,
-                deadlines: [],
-                timeline: [
-                    {
-                        stage: 'consultation',
-                        date: new Date('2025-01-10'),
-                        notes: 'Work visa consultation',
-                        updatedBy: adviserUser._id
-                    },
-                    {
-                        stage: 'documents_completed',
-                        date: new Date('2025-01-25'),
-                        notes: 'All documents uploaded by client',
-                        updatedBy: adviserUser._id
-                    },
-                    {
-                        stage: 'submitted_to_inz',
-                        date: new Date('2025-02-01'),
-                        notes: 'Application lodged with INZ',
-                        updatedBy: adviserUser._id
-                    }
-                ]
-            },
-
-            // 3. INZ processing with an RFI
-            {
-                clientId: createdClients[3]._id,
-                adviserId: adviserUser._id,
-                consultationId: createdConsultations[3]._id,
-                visaType: 'student',
-                stage: 'rfi_received',
-                progress: 70,
-                inzReference: 'INZ-REF-00789',
-                submissionDate: new Date('2025-01-15'),
-                decisionDate: null,
-                outcome: 'pending',
-                decisionLetter: null,
-                deadlines: [
-                    {
-                        type: 'rfi',
-                        description: 'Provide updated bank statement',
-                        dueDate: new Date('2025-02-28'),
-                        completed: false
-                    }
-                ],
-                timeline: [
-                    {
-                        stage: 'consultation',
-                        date: new Date('2025-01-05'),
-                        notes: 'Student visa consultation completed',
-                        updatedBy: adviserUser._id
-                    },
-                    {
-                        stage: 'submitted_to_inz',
-                        date: new Date('2025-01-15'),
-                        notes: 'Application submitted',
-                        updatedBy: adviserUser._id
-                    },
-                    {
-                        stage: 'inz_processing',
-                        date: new Date('2025-01-20'),
-                        notes: 'INZ started processing application',
-                        updatedBy: adviserUser._id
-                    },
-                    {
-                        stage: 'rfi_received',
-                        date: new Date('2025-02-10'),
-                        notes: 'INZ requested updated bank statement',
-                        updatedBy: adviserUser._id
-                    }
-                ]
-            },
-
-            // 4. Decision received (approved)
-            {
-                clientId: createdClients[4]._id,
-                adviserId: adviserUser._id,
-                consultationId: createdConsultations[4]._id,
-                visaType: 'residence',
-                stage: 'decision',
-                progress: 100,
-                inzReference: 'INZ-REF-00999',
-                submissionDate: new Date('2024-12-01'),
-                decisionDate: new Date('2025-02-15'),
-                outcome: 'approved',
-                decisionLetter: '/uploads/letters/decision-00999.pdf',
-                deadlines: [],
-                timeline: [
-                    {
-                        stage: 'consultation',
-                        date: new Date('2024-11-10'),
-                        notes: 'Residence visa consultation',
-                        updatedBy: adviserUser._id
-                    },
-                    {
-                        stage: 'documents_completed',
-                        date: new Date('2024-11-25'),
-                        notes: 'All required docs submitted',
-                        updatedBy: adviserUser._id
-                    },
-                    {
-                        stage: 'submitted_to_inz',
-                        date: new Date('2024-12-01'),
-                        notes: 'Application lodged',
-                        updatedBy: adviserUser._id
-                    },
-                    {
-                        stage: 'inz_processing',
-                        date: new Date('2024-12-15'),
-                        notes: 'Processing started by INZ',
-                        updatedBy: adviserUser._id
-                    },
-                    {
-                        stage: 'decision',
-                        date: new Date('2025-02-15'),
-                        notes: 'Visa approved 🎉',
                         updatedBy: adviserUser._id
                     }
                 ]
