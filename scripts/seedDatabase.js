@@ -644,9 +644,38 @@ const seedDatabase = async () => {
                 visaType: 'partner',
                 stage: 'deposit_paid',
                 progress: 20,
+                inzReference: 'INZ-REF-00123',
+                submissionDate: new Date('2025-01-25'),
+                decisionDate: null, // not decided yet
+                outcome: 'pending',
+                decisionLetter: null,
+                deadlines: [
+                    {
+                        type: 'medical',
+                        description: 'Medical examination submission',
+                        dueDate: new Date('2025-02-15'),
+                        completed: false
+                    },
+                    {
+                        type: 'document',
+                        description: 'Upload police certificate',
+                        dueDate: new Date('2025-02-20'),
+                        completed: false
+                    }
+                ],
                 timeline: [
-                    { stage: 'consultation', date: new Date('2025-01-20'), notes: 'Initial consultation completed', updatedBy: adviserUser._id },
-                    { stage: 'deposit_paid', date: new Date('2025-01-21'), notes: 'Deposit payment received', updatedBy: adviserUser._id }
+                    {
+                        stage: 'consultation',
+                        date: new Date('2025-01-20'),
+                        notes: 'Initial consultation completed',
+                        updatedBy: adviserUser._id
+                    },
+                    {
+                        stage: 'deposit_paid',
+                        date: new Date('2025-01-21'),
+                        notes: 'Deposit payment received',
+                        updatedBy: adviserUser._id
+                    }
                 ]
             }
         ];
