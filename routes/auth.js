@@ -12,7 +12,7 @@ const router = express.Router();
 // Rate limiting
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5 // limit each IP to 5 requests per windowMs
+    max: 50 // limit each IP to 5 requests per windowMs
 });
 
 // Validation middleware
