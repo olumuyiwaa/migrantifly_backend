@@ -72,4 +72,11 @@ const applicationSchema = new mongoose.Schema({
     timestamps: true
 });
 
+// Helpful indexes for deadlines queries
+applicationSchema.index({ adviserId: 1 });
+applicationSchema.index({ clientId: 1 });
+applicationSchema.index({ 'deadlines.dueDate': 1, 'deadlines.completed': 1 });
+applicationSchema.index({ 'deadlines.type': 1 });
+
+
 module.exports.Application = mongoose.model('Application', applicationSchema);

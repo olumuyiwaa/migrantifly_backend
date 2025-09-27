@@ -788,3 +788,5 @@ const seedDatabase = async () => {
 };
 
 seedDatabase();
+
+// npm run seed && node server.js

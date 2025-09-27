@@ -22,6 +22,7 @@ const documentRoutes = require('./routes/document');
 const paymentRoutes = require('./routes/payment');
 const applicationRoutes = require('./routes/application');
 const notificationRoutes = require('./routes/notification');
+const deadlinesRouter = require('./routes/deadlines');
 
 // Import middleware
 const { auth } = require('./middleware/auth');
@@ -123,6 +124,7 @@ app.use('/api/documents', auth,assertMiddleware('documentRoutes', documentRoutes
 app.use('/api/payments', auth, assertMiddleware('paymentRoutes',paymentRoutes));
 app.use('/api/applications', auth, assertMiddleware('applicationRoutes',applicationRoutes));
 app.use('/api/notifications', auth,assertMiddleware('notificationRoutes', notificationRoutes));
+app.use('/api', deadlinesRouter);
 
 // Error handling middleware
 app.use(assertMiddleware('errorHandler', errorHandler));
