@@ -1,18 +1,14 @@
-// routes/deadlines.js
 const express = require('express');
 const { query, param, validationResult } = require('express-validator');
 const mongoose = require('mongoose');
 const { Application } = require('../models/Application');
+const { auth } = require('../middleware/auth');
 
 const router = express.Router();
 
-// IMPORTANT: Replace this with your actual auth middleware import.
-// It must authenticate and set req.user = { _id: ObjectId, role: 'client'|'adviser'|'admin', ... }
-
-const { auth } = require('../middleware/auth'); // destructure the named export
-
-const router = express.Router();
+// Apply auth once for this router
 router.use(auth);
+
 
 // Simple role guard
 function requireRole(...allowed) {
