@@ -8,7 +8,10 @@ const router = express.Router();
 
 // IMPORTANT: Replace this with your actual auth middleware import.
 // It must authenticate and set req.user = { _id: ObjectId, role: 'client'|'adviser'|'admin', ... }
-const auth = require('../middleware/auth'); // should set req.user
+
+const { auth } = require('../middleware/auth'); // destructure the named export
+
+const router = express.Router();
 router.use(auth);
 
 // Simple role guard
