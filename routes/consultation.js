@@ -34,7 +34,7 @@ router.post('/book', async (req, res) => {
         if (!client) {
             client = new User({
                 email: clientEmail,
-                password: 'temp', // Will be set during account setup
+                password: 'temp123', // Will be set during account setup
                 profile: {
                     firstName: clientName.split(' ')[0],
                     lastName: clientName.split(' ').slice(1).join(' '),

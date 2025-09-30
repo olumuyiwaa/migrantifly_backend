@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-const SWAGGER_BYPASS_PATHS = ['/api-docs', '/openapi.json'];
+const SWAGGER_BYPASS_PATHS = ['/api-docs','/api/docs', '/openapi.json'];
 
 // Auth middleware with Swagger bypass
 const auth = async (req, res, next) => {
