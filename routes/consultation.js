@@ -1,5 +1,5 @@
-
 const express = require('express');
+const crypto = require('crypto');
 const { Consultation, User } = require('../models');
 const { auth, authorize } = require('../middleware/auth');
 const { auditLogger } = require('../middleware/auditLog');
@@ -21,10 +21,17 @@ router.post('/book', async (req, res) => {
             message
         } = req.body;
 
+        // Normalize method from public API to schema values
+        const methodMap = {
+            online: 'zoom',
+            in_person: 'in-person'
+        };
+        const normalizedMethod = methodMap[method] || method;
+
         // Create consultation record
         const consultation = new Consultation({
             scheduledDate: new Date(`${preferredDate} ${preferredTime}`),
-            method,
+            method: normalizedMethod,
             status: 'scheduled',
             notes: message
         });
@@ -32,12 +39,14 @@ router.post('/book', async (req, res) => {
         // Find or create client user record
         let client = await User.findOne({ email: clientEmail });
         if (!client) {
+            const safeTempPassword = crypto.randomBytes(12).toString('base64url'); // >= 6 chars
+            const [firstName, ...rest] = (clientName || '').trim().split(/\s+/);
             client = new User({
                 email: clientEmail,
-                password: 'temp123', // Will be set during account setup
+                password: safeTempPassword, // temporary; to be changed during setup
                 profile: {
-                    firstName: clientName.split(' ')[0],
-                    lastName: clientName.split(' ').slice(1).join(' '),
+                    firstName: firstName || 'Client',
+                    lastName: rest.join(' '),
                     phone: clientPhone
                 },
                 isEmailVerified: false
@@ -56,7 +65,7 @@ router.post('/book', async (req, res) => {
             data: {
                 clientName,
                 consultationDate: new Date(`${preferredDate} ${preferredTime}`).toLocaleString(),
-                method,
+                method: normalizedMethod,
                 consultationId: consultation._id
             }
         });
