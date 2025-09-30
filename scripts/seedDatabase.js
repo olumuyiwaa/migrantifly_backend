@@ -628,14 +628,105 @@ const seedDatabase = async () => {
                 clientId: createdClients[0]._id,
                 adviserId: adviserUser._id,
                 consultationId: createdConsultations[0]._id,
+
+                // Destination country
+                destinationCountry: {
+                    code: 'NZ',
+                    name: 'New Zealand'
+                },
+
+                // Basic application info
                 visaType: 'work',
-                stage: 'documents_completed',
-                progress: 40,
+                stage: 'submitted_to_inz',
+                progress: 70,
+
+                // INZ/Immigration details
+                inzReference: 'NZ-2025-WV-12456789',
+                submissionDate: new Date('2025-01-25'),
+
+                // Deadlines
+                deadlines: [
+                    {
+                        type: 'document',
+                        description: 'Submit updated police clearance certificate',
+                        dueDate: new Date('2025-02-15'),
+                        completed: true
+                    },
+                    {
+                        type: 'medical',
+                        description: 'Complete medical examination at approved panel physician',
+                        dueDate: new Date('2025-02-28'),
+                        completed: false
+                    },
+                    {
+                        type: 'rfi',
+                        description: 'Provide additional employment contract details',
+                        dueDate: new Date('2025-03-10'),
+                        completed: false
+                    }
+                ],
+
+                // Comprehensive timeline
                 timeline: [
-                    { stage: 'consultation', date: new Date('2025-01-15'), notes: 'Initial consultation completed', updatedBy: adviserUser._id },
-                    { stage: 'deposit_paid', date: new Date('2025-01-16'), notes: 'Deposit payment received', updatedBy: adviserUser._id },
-                    { stage: 'documents_completed', date: new Date('2025-01-20'), notes: 'All required documents uploaded and approved', updatedBy: adviserUser._id }
-                ]
+                    {
+                        stage: 'consultation',
+                        date: new Date('2025-01-10'),
+                        notes: 'Initial consultation completed. Discussed Essential Skills Work Visa requirements. Client meets all basic criteria.',
+                        updatedBy: adviserUser._id
+                    },
+                    {
+                        stage: 'deposit_paid',
+                        date: new Date('2025-01-12'),
+                        notes: 'Deposit payment of $500 received via bank transfer. Receipt #DEP-001 issued.',
+                        updatedBy: adviserUser._id
+                    },
+                    {
+                        stage: 'documents_completed',
+                        date: new Date('2025-01-22'),
+                        notes: 'All required documents uploaded and approved: passport, job offer letter, employment contract, qualifications (Bachelor of Computer Science), police clearance, passport photos. Document checklist 100% complete.',
+                        updatedBy: adviserUser._id
+                    },
+                    {
+                        stage: 'additional_docs_required',
+                        date: new Date('2025-01-23'),
+                        notes: 'Requested updated police clearance certificate as current one expires before expected visa grant date.',
+                        updatedBy: adviserUser._id
+                    },
+                    {
+                        stage: 'documents_completed',
+                        date: new Date('2025-01-24'),
+                        notes: 'Updated police clearance certificate received and approved. Valid until December 2025.',
+                        updatedBy: adviserUser._id
+                    },
+                    {
+                        stage: 'submitted_to_inz',
+                        date: new Date('2025-01-25'),
+                        notes: 'Application successfully submitted to Immigration New Zealand via online portal. INZ Reference: NZ-2025-WV-12456789. Estimated processing time: 4-8 weeks.',
+                        updatedBy: adviserUser._id
+                    },
+                    {
+                        stage: 'inz_processing',
+                        date: new Date('2025-01-26'),
+                        notes: 'INZ confirmed receipt of application. Application is in queue for case officer assignment.',
+                        updatedBy: adviserUser._id
+                    },
+                    {
+                        stage: 'inz_processing',
+                        date: new Date('2025-02-05'),
+                        notes: 'Case officer assigned. Medical examination requested - deadline February 28, 2025.',
+                        updatedBy: adviserUser._id
+                    },
+                    {
+                        stage: 'rfi_received',
+                        date: new Date('2025-02-18'),
+                        notes: 'Request for Information (RFI) received from INZ. Additional details required about employment contract terms and job duties. Client notified immediately. Response deadline: March 10, 2025.',
+                        updatedBy: adviserUser._id
+                    }
+                ],
+
+                // Metadata
+                createdAt: new Date('2025-01-10'),
+                updatedAt: new Date('2025-02-18')
             },
             {
                 clientId: createdClients[1]._id,
