@@ -58,17 +58,23 @@ router.post('/book', async (req, res) => {
         await consultation.save();
 
         // Send confirmation email
-        await sendEmail({
-            to: clientEmail,
-            subject: 'Consultation Booked - Migrantifly',
-            template: 'consultation-confirmation',
-            data: {
-                clientName,
-                consultationDate: new Date(`${preferredDate} ${preferredTime}`).toLocaleString(),
-                method: normalizedMethod,
-                consultationId: consultation._id
-            }
-        });
+        try {
+            await sendEmail({
+                to: clientEmail,
+                subject: 'Consultation Booked - Migrantifly',
+                template: 'consultation-confirmation',
+                data: {
+                    clientName,
+                    consultationDate: new Date(`${preferredDate} ${preferredTime}`).toLocaleString(),
+                    method: normalizedMethod,
+                    consultationId: consultation._id
+                }
+            });
+        } catch (emailErr) {
+            // Log but do not fail the booking
+            console.error('Email send failed for consultation', consultation._id, emailErr?.message);
+        }
+
 
         res.status(201).json({
             success: true,

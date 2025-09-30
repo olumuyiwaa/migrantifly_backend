@@ -397,3 +397,267 @@ router.get(
 );
 
 module.exports = router;
+
+
+
+/**
+ * @openapi
+ * tags:
+ *   - name: Deadlines
+ *     description: Deadlines operations
+ *
+ * /api/deadlines:
+ *   get:
+ *     tags: [Deadlines]
+ *     summary: List deadlines (adviser/admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [overdue, upcoming, completed, all]
+ *         description: Filter by status; default excludes completed when not provided
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [rfi, ppi, medical, document]
+ *         description: Filter by deadline type
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Include deadlines due on/after this date (ISO)
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Include deadlines due on/before this date (ISO)
+ *       - in: query
+ *         name: completed
+ *         schema:
+ *           type: boolean
+ *         description: If provided, overrides status filter with explicit completed=true/false
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 200
+ *           default: 20
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [dueDate]
+ *           default: dueDate
+ *       - in: query
+ *         name: order
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: asc
+ *       - in: query
+ *         name: includeSummary
+ *         schema:
+ *           type: boolean
+ *           default: true
+ *     responses:
+ *       200:
+ *         description: Deadlines returned
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/DeadlinesResponse'
+ *       400: { description: Validation error }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden }
+ *       500: { description: Server error }
+ *
+ * /api/deadlines/client/{clientId}:
+ *   get:
+ *     tags: [Deadlines]
+ *     summary: List deadlines for a specific client (adviser/admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: clientId
+ *         required: true
+ *         schema: { type: string }
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [overdue, upcoming, completed, all]
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [rfi, ppi, medical, document]
+ *       - in: query
+ *         name: from
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: to
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: completed
+ *         schema: { type: boolean }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, minimum: 1, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+ *       - in: query
+ *         name: sortBy
+ *         schema: { type: string, enum: [dueDate], default: dueDate }
+ *       - in: query
+ *         name: order
+ *         schema: { type: string, enum: [asc, desc], default: asc }
+ *       - in: query
+ *         name: includeSummary
+ *         schema: { type: boolean, default: true }
+ *     responses:
+ *       200:
+ *         description: Client deadlines returned
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/DeadlinesResponse'
+ *       400: { description: Validation error }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden }
+ *       500: { description: Server error }
+ *
+ * /api/deadlines/me:
+ *   get:
+ *     tags: [Deadlines]
+ *     summary: List deadlines for the authenticated client
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [overdue, upcoming, completed, all]
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [rfi, ppi, medical, document]
+ *       - in: query
+ *         name: from
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: to
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: completed
+ *         schema: { type: boolean }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, minimum: 1, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+ *       - in: query
+ *         name: sortBy
+ *         schema: { type: string, enum: [dueDate], default: dueDate }
+ *       - in: query
+ *         name: order
+ *         schema: { type: string, enum: [asc, desc], default: asc }
+ *       - in: query
+ *         name: includeSummary
+ *         schema: { type: boolean, default: true }
+ *     responses:
+ *       200:
+ *         description: Client deadlines returned
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/DeadlinesResponse'
+ *       400: { description: Validation error }
+ *       401: { description: Unauthorized }
+ *       500: { description: Server error }
+ *
+ * components:
+ *   schemas:
+ *     Deadline:
+ *       type: object
+ *       properties:
+ *         type:
+ *           type: string
+ *           enum: [rfi, ppi, medical, document]
+ *         description:
+ *           type: string
+ *           nullable: true
+ *         dueDate:
+ *           type: string
+ *           format: date-time
+ *         completed:
+ *           type: boolean
+ *     DeadlineItem:
+ *       type: object
+ *       properties:
+ *         applicationId:
+ *           type: string
+ *         clientId:
+ *           type: string
+ *         adviserId:
+ *           type: string
+ *           nullable: true
+ *         visaType:
+ *           type: string
+ *           enum: [work, partner, student, residence, visitor, business]
+ *         stage:
+ *           type: string
+ *           enum:
+ *             - consultation
+ *             - deposit_paid
+ *             - documents_completed
+ *             - additional_docs_required
+ *             - submitted_to_inz
+ *             - inz_processing
+ *             - rfi_received
+ *             - ppi_received
+ *             - decision
+ *         deadline:
+ *           $ref: '#/components/schemas/Deadline'
+ *         overdue:
+ *           type: boolean
+ *         daysRemaining:
+ *           type: integer
+ *           description: Days until due date (negative if overdue)
+ *     DeadlinesSummary:
+ *       type: object
+ *       properties:
+ *         total: { type: integer }
+ *         overdue: { type: integer }
+ *         dueToday: { type: integer }
+ *         dueSoon: { type: integer }
+ *     DeadlinesResponse:
+ *       type: object
+ *       properties:
+ *         page: { type: integer }
+ *         limit: { type: integer }
+ *         total: { type: integer }
+ *         summary:
+ *           $ref: '#/components/schemas/DeadlinesSummary'
+ *         data:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/DeadlineItem'
+ */

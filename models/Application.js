@@ -13,6 +13,18 @@ const applicationSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Consultation'
     },
+    destinationCountry: {
+        code: {
+            type: String,
+            uppercase: true,
+            trim: true,
+            match: /^[A-Z]{2}$/ // e.g., NZ, AU, CA
+        },
+        name: {
+            type: String,
+            trim: true
+        }
+    },
     visaType: {
         type: String,
         enum: ['work', 'partner', 'student', 'residence', 'visitor', 'business'],
@@ -78,5 +90,6 @@ applicationSchema.index({ clientId: 1 });
 applicationSchema.index({ 'deadlines.dueDate': 1, 'deadlines.completed': 1 });
 applicationSchema.index({ 'deadlines.type': 1 });
 
+applicationSchema.index({ 'destinationCountry.code': 1 });
 
 module.exports.Application = mongoose.model('Application', applicationSchema);

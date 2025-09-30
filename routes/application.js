@@ -10,50 +10,51 @@ const router = express.Router();
 
 // Get all applications (admin/adviser view)
 router.get('/',
-    auth,
-    authorize('admin', 'adviser'),
-    async (req, res) => {
-        try {
-            const { stage, visaType, page = 1, limit = 20 } = req.query;
+  auth,
+  authorize('admin', 'adviser'),
+  async (req, res) => {
+      try {
+          const { stage, visaType, countryCode, page = 1, limit = 20 } = req.query;
 
-            const filter = {};
-            if (stage) filter.stage = stage;
-            if (visaType) filter.visaType = visaType;
+          const filter = {};
+          if (stage) filter.stage = stage;
+          if (visaType) filter.visaType = visaType;
+          if (countryCode) filter['destinationCountry.code'] = countryCode.toUpperCase();
 
-            const applications = await Application.find(filter)
-                .populate('clientId', 'email profile')
-                .populate('adviserId', 'email profile')
-                .sort({ createdAt: -1 })
-                .limit(limit * 1)
-                .skip((page - 1) * limit);
+          const applications = await Application.find(filter)
+            .populate('clientId', 'email profile')
+            .populate('adviserId', 'email profile')
+            .sort({ createdAt: -1 })
+            .limit(limit * 1)
+            .skip((page - 1) * limit);
 
-            const total = await Application.countDocuments(filter);
+          const total = await Application.countDocuments(filter);
 
-            res.status(200).json({
-                success: true,
-                data: {
-                    applications,
-                    totalPages: Math.ceil(total / limit),
-                    currentPage: page,
-                    total
-                }
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Error fetching applications',
-                error: error.message
-            });
-        }
-    }
+          res.status(200).json({
+              success: true,
+              data: {
+                  applications,
+                  totalPages: Math.ceil(total / limit),
+                  currentPage: page,
+                  total
+              }
+          });
+      } catch (error) {
+          res.status(500).json({
+              success: false,
+              message: 'Error fetching applications',
+              error: error.message
+          });
+      }
+  }
 );
 
 // Get client's applications
 router.get('/my-applications', auth, async (req, res) => {
     try {
         const applications = await Application.find({ clientId: req.user._id })
-            .populate('adviserId', 'email profile')
-            .sort({ createdAt: -1 });
+          .populate('adviserId', 'email profile')
+          .sort({ createdAt: -1 });
 
         res.status(200).json({
             success: true,
@@ -70,377 +71,398 @@ router.get('/my-applications', auth, async (req, res) => {
 
 // Create new application
 router.post('/',
-    auth,
-    auditLogger('create', 'application'),
-    async (req, res) => {
-        try {
-            const { visaType, consultationId } = req.body;
+  auth,
+  auditLogger('create', 'application'),
+  async (req, res) => {
+      try {
+          const { visaType, consultationId, destinationCountry } = req.body;
 
-            // Check if client already has an active application for this visa type
-            const existingApp = await Application.findOne({
-                clientId: req.user._id,
-                visaType,
-                stage: { $nin: ['decision'] }
-            });
+          // Validate destination country if provided
+          if (destinationCountry && destinationCountry.code) {
+              if (!/^[A-Z]{2}$/.test(destinationCountry.code)) {
+                  return res.status(400).json({
+                      success: false,
+                      message: 'Invalid country code format. Must be 2 uppercase letters (e.g., NZ, AU, CA).'
+                  });
+              }
+          }
 
-            if (existingApp) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'You already have an active application for this visa type'
-                });
-            }
+          // Set default to New Zealand if not provided
+          const destination = destinationCountry || { code: 'NZ', name: 'New Zealand' };
 
-            const application = new Application({
-                clientId: req.user._id,
-                visaType,
-                consultationId,
-                stage: 'consultation',
-                progress: 10,
-                timeline: [{
-                    stage: 'consultation',
-                    date: new Date(),
-                    notes: 'Application created after consultation',
-                    updatedBy: req.user._id
-                }]
-            });
+          // Check if client already has an active application for this visa type and country
+          const existingApp = await Application.findOne({
+              clientId: req.user._id,
+              visaType,
+              'destinationCountry.code': destination.code,
+              stage: { $nin: ['decision'] }
+          });
 
-            await application.save();
+          if (existingApp) {
+              return res.status(400).json({
+                  success: false,
+                  message: `You already have an active ${visaType} visa application for ${destination.name}`
+              });
+          }
 
-            // Create initial document checklist
-            await createDocumentChecklist(application._id, visaType);
+          const application = new Application({
+              clientId: req.user._id,
+              visaType,
+              consultationId,
+              destinationCountry: destination,
+              stage: 'consultation',
+              progress: 10,
+              timeline: [{
+                  stage: 'consultation',
+                  date: new Date(),
+                  notes: `Application created for ${destination.name} ${visaType} visa`,
+                  updatedBy: req.user._id
+              }]
+          });
 
-            res.status(201).json({
-                success: true,
-                message: 'Application created successfully',
-                data: application
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Error creating application',
-                error: error.message
-            });
-        }
-    }
+          await application.save();
+
+          // Create initial document checklist
+          await createDocumentChecklist(application._id, visaType, destination.code);
+
+          res.status(201).json({
+              success: true,
+              message: 'Application created successfully',
+              data: application
+          });
+      } catch (error) {
+          res.status(500).json({
+              success: false,
+              message: 'Error creating application',
+              error: error.message
+          });
+      }
+  }
 );
 
 // Update application stage
 router.patch('/:id/stage',
-    auth,
-    authorize('admin', 'adviser'),
-    auditLogger('update_stage', 'application'),
-    async (req, res) => {
-        try {
-            const { stage, notes } = req.body;
-            const applicationId = req.params.id;
+  auth,
+  authorize('admin', 'adviser'),
+  auditLogger('update_stage', 'application'),
+  async (req, res) => {
+      try {
+          const { stage, notes } = req.body;
+          const applicationId = req.params.id;
 
-            const application = await Application.findById(applicationId);
-            if (!application) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Application not found'
-                });
-            }
+          const application = await Application.findById(applicationId);
+          if (!application) {
+              return res.status(404).json({
+                  success: false,
+                  message: 'Application not found'
+              });
+          }
 
-            const oldStage = application.stage;
-            application.stage = stage;
-            application.progress = calculateProgress(stage);
+          const oldStage = application.stage;
+          application.stage = stage;
+          application.progress = calculateProgress(stage);
 
-            // Add to timeline
-            application.timeline.push({
-                stage,
-                date: new Date(),
-                notes,
-                updatedBy: req.user._id
-            });
+          // Add to timeline
+          application.timeline.push({
+              stage,
+              date: new Date(),
+              notes,
+              updatedBy: req.user._id
+          });
 
-            await application.save();
+          await application.save();
 
-            // Send notification to client
-            await sendNotification({
-                userId: application.clientId,
-                applicationId: application._id,
-                type: 'stage_updated',
-                title: 'Application Stage Updated',
-                message: `Your application has been moved to ${stage.replace('_', ' ').toUpperCase()}`,
-                priority: 'medium'
-            });
+          // Send notification to client
+          await sendNotification({
+              userId: application.clientId,
+              applicationId: application._id,
+              type: 'stage_updated',
+              title: 'Application Stage Updated',
+              message: `Your application has been moved to ${stage.replace('_', ' ').toUpperCase()}`,
+              priority: 'medium'
+          });
 
-            res.status(200).json({
-                success: true,
-                message: 'Application stage updated successfully',
-                data: application
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Error updating application stage',
-                error: error.message
-            });
-        }
-    }
+          res.status(200).json({
+              success: true,
+              message: 'Application stage updated successfully',
+              data: application
+          });
+      } catch (error) {
+          res.status(500).json({
+              success: false,
+              message: 'Error updating application stage',
+              error: error.message
+          });
+      }
+  }
 );
 
-// Submit to INZ
+// Submit to Immigration Authority
 router.patch('/:id/submit-to-inz',
-    auth,
-    authorize('admin', 'adviser'),
-    auditLogger('submit_to_inz', 'application'),
-    async (req, res) => {
-        try {
-            const { inzReference } = req.body;
-            const applicationId = req.params.id;
+  auth,
+  authorize('admin', 'adviser'),
+  auditLogger('submit_to_immigration', 'application'),
+  async (req, res) => {
+      try {
+          const { inzReference } = req.body;
+          const applicationId = req.params.id;
 
-            const application = await Application.findById(applicationId);
-            if (!application) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Application not found'
-                });
-            }
+          const application = await Application.findById(applicationId);
+          if (!application) {
+              return res.status(404).json({
+                  success: false,
+                  message: 'Application not found'
+              });
+          }
 
-            // Check if all required documents are approved
-            const requiredDocs = await Document.find({
-                applicationId,
-                isRequired: true,
-                status: { $ne: 'approved' }
-            });
+          // Check if all required documents are approved
+          const requiredDocs = await Document.find({
+              applicationId,
+              isRequired: true,
+              status: { $ne: 'approved' }
+          });
 
-            if (requiredDocs.length > 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Cannot submit to INZ. Some required documents are not approved.',
-                    pendingDocuments: requiredDocs.map(doc => doc.type)
-                });
-            }
+          if (requiredDocs.length > 0) {
+              return res.status(400).json({
+                  success: false,
+                  message: 'Cannot submit to immigration authority. Some required documents are not approved.',
+                  pendingDocuments: requiredDocs.map(doc => doc.type)
+              });
+          }
 
-            application.stage = 'submitted_to_inz';
-            application.progress = calculateProgress('submitted_to_inz');
-            application.inzReference = inzReference;
-            application.submissionDate = new Date();
+          const countryName = application.destinationCountry?.name || 'Immigration Authority';
 
-            application.timeline.push({
-                stage: 'submitted_to_inz',
-                date: new Date(),
-                notes: `Application submitted to INZ with reference: ${inzReference}`,
-                updatedBy: req.user._id
-            });
+          application.stage = 'submitted_to_inz';
+          application.progress = calculateProgress('submitted_to_inz');
+          application.inzReference = inzReference;
+          application.submissionDate = new Date();
 
-            await application.save();
+          application.timeline.push({
+              stage: 'submitted_to_inz',
+              date: new Date(),
+              notes: `Application submitted to ${countryName} with reference: ${inzReference}`,
+              updatedBy: req.user._id
+          });
 
-            // Send notification to client
-            await sendNotification({
-                userId: application.clientId,
-                applicationId: application._id,
-                type: 'stage_updated',
-                title: 'Application Submitted to INZ',
-                message: `Your application has been submitted to Immigration New Zealand. Reference: ${inzReference}`,
-                priority: 'high'
-            });
+          await application.save();
 
-            res.status(200).json({
-                success: true,
-                message: 'Application submitted to INZ successfully',
-                data: application
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Error submitting application to INZ',
-                error: error.message
-            });
-        }
-    }
+          // Send notification to client
+          await sendNotification({
+              userId: application.clientId,
+              applicationId: application._id,
+              type: 'stage_updated',
+              title: `Application Submitted to ${countryName}`,
+              message: `Your application has been submitted to ${countryName}. Reference: ${inzReference}`,
+              priority: 'high'
+          });
+
+          res.status(200).json({
+              success: true,
+              message: 'Application submitted successfully',
+              data: application
+          });
+      } catch (error) {
+          res.status(500).json({
+              success: false,
+              message: 'Error submitting application',
+              error: error.message
+          });
+      }
+  }
 );
 
 // Add RFI (Request for Information)
 router.post('/:id/rfi',
-    auth,
-    authorize('admin', 'adviser'),
-    auditLogger('add_rfi', 'application'),
-    async (req, res) => {
-        try {
-            const { description, dueDate } = req.body;
-            const applicationId = req.params.id;
+  auth,
+  authorize('admin', 'adviser'),
+  auditLogger('add_rfi', 'application'),
+  async (req, res) => {
+      try {
+          const { description, dueDate } = req.body;
+          const applicationId = req.params.id;
 
-            const application = await Application.findById(applicationId);
-            if (!application) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Application not found'
-                });
-            }
+          const application = await Application.findById(applicationId);
+          if (!application) {
+              return res.status(404).json({
+                  success: false,
+                  message: 'Application not found'
+              });
+          }
 
-            // Add deadline for RFI
-            application.deadlines.push({
-                type: 'rfi',
-                description,
-                dueDate: new Date(dueDate),
-                completed: false
-            });
+          // Add deadline for RFI
+          application.deadlines.push({
+              type: 'rfi',
+              description,
+              dueDate: new Date(dueDate),
+              completed: false
+          });
 
-            application.stage = 'rfi_received';
-            application.timeline.push({
-                stage: 'rfi_received',
-                date: new Date(),
-                notes: `RFI received: ${description}`,
-                updatedBy: req.user._id
-            });
+          application.stage = 'rfi_received';
+          application.timeline.push({
+              stage: 'rfi_received',
+              date: new Date(),
+              notes: `RFI received: ${description}`,
+              updatedBy: req.user._id
+          });
 
-            await application.save();
+          await application.save();
 
-            // Send urgent notification to client
-            await sendNotification({
-                userId: application.clientId,
-                applicationId: application._id,
-                type: 'rfi_received',
-                title: 'Request for Information Received',
-                message: `INZ has requested additional information. Due date: ${new Date(dueDate).toLocaleDateString()}`,
-                priority: 'urgent',
-                actionRequired: true
-            });
+          const countryName = application.destinationCountry?.name || 'Immigration Authority';
 
-            res.status(200).json({
-                success: true,
-                message: 'RFI added successfully',
-                data: application
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Error adding RFI',
-                error: error.message
-            });
-        }
-    }
+          // Send urgent notification to client
+          await sendNotification({
+              userId: application.clientId,
+              applicationId: application._id,
+              type: 'rfi_received',
+              title: 'Request for Information Received',
+              message: `${countryName} has requested additional information. Due date: ${new Date(dueDate).toLocaleDateString()}`,
+              priority: 'urgent',
+              actionRequired: true
+          });
+
+          res.status(200).json({
+              success: true,
+              message: 'RFI added successfully',
+              data: application
+          });
+      } catch (error) {
+          res.status(500).json({
+              success: false,
+              message: 'Error adding RFI',
+              error: error.message
+          });
+      }
+  }
 );
 
 // Add PPI (Potentially Prejudicial Information)
 router.post('/:id/ppi',
-    auth,
-    authorize('admin', 'adviser'),
-    auditLogger('add_ppi', 'application'),
-    async (req, res) => {
-        try {
-            const { description, dueDate } = req.body;
-            const applicationId = req.params.id;
+  auth,
+  authorize('admin', 'adviser'),
+  auditLogger('add_ppi', 'application'),
+  async (req, res) => {
+      try {
+          const { description, dueDate } = req.body;
+          const applicationId = req.params.id;
 
-            const application = await Application.findById(applicationId);
-            if (!application) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Application not found'
-                });
-            }
+          const application = await Application.findById(applicationId);
+          if (!application) {
+              return res.status(404).json({
+                  success: false,
+                  message: 'Application not found'
+              });
+          }
 
-            // Add deadline for PPI
-            application.deadlines.push({
-                type: 'ppi',
-                description,
-                dueDate: new Date(dueDate),
-                completed: false
-            });
+          // Add deadline for PPI
+          application.deadlines.push({
+              type: 'ppi',
+              description,
+              dueDate: new Date(dueDate),
+              completed: false
+          });
 
-            application.stage = 'ppi_received';
-            application.timeline.push({
-                stage: 'ppi_received',
-                date: new Date(),
-                notes: `PPI received: ${description}`,
-                updatedBy: req.user._id
-            });
+          application.stage = 'ppi_received';
+          application.timeline.push({
+              stage: 'ppi_received',
+              date: new Date(),
+              notes: `PPI received: ${description}`,
+              updatedBy: req.user._id
+          });
 
-            await application.save();
+          await application.save();
 
-            // Send urgent notification to client
-            await sendNotification({
-                userId: application.clientId,
-                applicationId: application._id,
-                type: 'ppi_received',
-                title: 'Potentially Prejudicial Information Received',
-                message: `INZ has raised concerns that require your response. Due date: ${new Date(dueDate).toLocaleDateString()}`,
-                priority: 'urgent',
-                actionRequired: true
-            });
+          const countryName = application.destinationCountry?.name || 'Immigration Authority';
 
-            res.status(200).json({
-                success: true,
-                message: 'PPI added successfully',
-                data: application
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Error adding PPI',
-                error: error.message
-            });
-        }
-    }
+          // Send urgent notification to client
+          await sendNotification({
+              userId: application.clientId,
+              applicationId: application._id,
+              type: 'ppi_received',
+              title: 'Potentially Prejudicial Information Received',
+              message: `${countryName} has raised concerns that require your response. Due date: ${new Date(dueDate).toLocaleDateString()}`,
+              priority: 'urgent',
+              actionRequired: true
+          });
+
+          res.status(200).json({
+              success: true,
+              message: 'PPI added successfully',
+              data: application
+          });
+      } catch (error) {
+          res.status(500).json({
+              success: false,
+              message: 'Error adding PPI',
+              error: error.message
+          });
+      }
+  }
 );
 
 // Record final decision
 router.patch('/:id/decision',
-    auth,
-    authorize('admin', 'adviser'),
-    auditLogger('record_decision', 'application'),
-    async (req, res) => {
-        try {
-            const { outcome, decisionLetter, notes } = req.body;
-            const applicationId = req.params.id;
+  auth,
+  authorize('admin', 'adviser'),
+  auditLogger('record_decision', 'application'),
+  async (req, res) => {
+      try {
+          const { outcome, decisionLetter, notes } = req.body;
+          const applicationId = req.params.id;
 
-            const application = await Application.findById(applicationId);
-            if (!application) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Application not found'
-                });
-            }
+          const application = await Application.findById(applicationId);
+          if (!application) {
+              return res.status(404).json({
+                  success: false,
+                  message: 'Application not found'
+              });
+          }
 
-            application.stage = 'decision';
-            application.progress = 100;
-            application.outcome = outcome;
-            application.decisionDate = new Date();
-            application.decisionLetter = decisionLetter;
+          application.stage = 'decision';
+          application.progress = 100;
+          application.outcome = outcome;
+          application.decisionDate = new Date();
+          application.decisionLetter = decisionLetter;
 
-            application.timeline.push({
-                stage: 'decision',
-                date: new Date(),
-                notes: notes || `Application ${outcome}`,
-                updatedBy: req.user._id
-            });
+          application.timeline.push({
+              stage: 'decision',
+              date: new Date(),
+              notes: notes || `Application ${outcome}`,
+              updatedBy: req.user._id
+          });
 
-            await application.save();
+          await application.save();
 
-            // Send notification to client
-            const notificationTitle = outcome === 'approved' ?
-                'Congratulations! Your Visa Application is Approved' :
-                'Visa Application Decision Received';
+          // Send notification to client
+          const notificationTitle = outcome === 'approved' ?
+            'Congratulations! Your Visa Application is Approved' :
+            'Visa Application Decision Received';
 
-            const notificationMessage = outcome === 'approved' ?
-                'Your visa application has been approved by INZ. You can download your visa from the portal.' :
-                'Your visa application decision is now available. Please check your portal for details.';
+          const notificationMessage = outcome === 'approved' ?
+            'Your visa application has been approved. You can download your visa from the portal.' :
+            'Your visa application decision is now available. Please check your portal for details.';
 
-            await sendNotification({
-                userId: application.clientId,
-                applicationId: application._id,
-                type: 'decision_received',
-                title: notificationTitle,
-                message: notificationMessage,
-                priority: 'high'
-            });
+          await sendNotification({
+              userId: application.clientId,
+              applicationId: application._id,
+              type: 'decision_received',
+              title: notificationTitle,
+              message: notificationMessage,
+              priority: 'high'
+          });
 
-            res.status(200).json({
-                success: true,
-                message: 'Decision recorded successfully',
-                data: application
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Error recording decision',
-                error: error.message
-            });
-        }
-    }
+          res.status(200).json({
+              success: true,
+              message: 'Decision recorded successfully',
+              data: application
+          });
+      } catch (error) {
+          res.status(500).json({
+              success: false,
+              message: 'Error recording decision',
+              error: error.message
+          });
+      }
+  }
 );
 
 // Get application dashboard data
@@ -455,8 +477,8 @@ router.get('/:id/dashboard', auth, async (req, res) => {
         }
 
         const application = await Application.findOne(filter)
-            .populate('clientId', 'email profile')
-            .populate('adviserId', 'email profile');
+          .populate('clientId', 'email profile')
+          .populate('adviserId', 'email profile');
 
         if (!application) {
             return res.status(404).json({
@@ -467,20 +489,20 @@ router.get('/:id/dashboard', auth, async (req, res) => {
 
         // Get documents with status
         const documents = await Document.find({ applicationId })
-            .select('type name status isRequired reviewNotes');
+          .select('type name status isRequired reviewNotes');
 
         // Get pending deadlines
         const pendingDeadlines = application.deadlines
-            .filter(deadline => !deadline.completed && new Date(deadline.dueDate) > new Date())
-            .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+          .filter(deadline => !deadline.completed && new Date(deadline.dueDate) > new Date())
+          .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
 
         // Get recent notifications
         const notifications = await Notification.find({
             userId: req.user.role === 'client' ? req.user._id : application.clientId,
             applicationId
         })
-            .sort({ createdAt: -1 })
-            .limit(10);
+          .sort({ createdAt: -1 })
+          .limit(10);
 
         // Calculate completion percentage for each stage
         const stageCompletion = calculateStageCompletion(application, documents);
@@ -505,9 +527,9 @@ router.get('/:id/dashboard', auth, async (req, res) => {
     }
 });
 
-// Helper function to create document checklist based on visa type
-async function createDocumentChecklist(applicationId, visaType) {
-    const documentTypes = getRequiredDocuments(visaType);
+// Helper function to create document checklist based on visa type and country
+async function createDocumentChecklist(applicationId, visaType, countryCode = 'NZ') {
+    const documentTypes = getRequiredDocuments(visaType, countryCode);
 
     const documentPromises = documentTypes.map(docType => {
         return Document.create({
@@ -523,14 +545,30 @@ async function createDocumentChecklist(applicationId, visaType) {
     await Promise.all(documentPromises);
 }
 
-// Helper function to get required documents by visa type
-function getRequiredDocuments(visaType) {
+// Helper function to get required documents by visa type and country
+function getRequiredDocuments(visaType, countryCode = 'NZ') {
+    // Common documents across all countries
     const commonDocs = [
         { type: 'passport', name: 'Passport Copy', required: true },
-        { type: 'photo', name: 'Passport Photos', required: true },
-        { type: 'police_clearance', name: 'Police Clearance Certificate', required: true }
+        { type: 'photo', name: 'Passport Photos', required: true }
     ];
 
+    // Country-specific common requirements
+    const countrySpecificCommon = {
+        'NZ': [
+            { type: 'police_clearance', name: 'Police Clearance Certificate', required: true }
+        ],
+        'AU': [
+            { type: 'police_clearance', name: 'Police Clearance Certificate', required: true },
+            { type: 'health_examination', name: 'Health Examination', required: true }
+        ],
+        'CA': [
+            { type: 'police_clearance', name: 'Police Certificate', required: true },
+            { type: 'biometrics', name: 'Biometrics', required: true }
+        ]
+    };
+
+    // Visa-specific documents
     const visaSpecificDocs = {
         work: [
             { type: 'job_offer', name: 'Job Offer Letter', required: true },
@@ -539,19 +577,59 @@ function getRequiredDocuments(visaType) {
         ],
         partner: [
             { type: 'marriage_certificate', name: 'Marriage/Partnership Certificate', required: true },
+            { type: 'relationship_evidence', name: 'Relationship Evidence', required: true },
             { type: 'financial_records', name: 'Financial Evidence', required: true }
         ],
         student: [
+            { type: 'offer_of_place', name: 'Offer of Place', required: true },
             { type: 'qualification_documents', name: 'Academic Qualifications', required: true },
             { type: 'financial_records', name: 'Financial Evidence', required: true }
         ],
         residence: [
             { type: 'financial_records', name: 'Financial Evidence', required: true },
-            { type: 'medical_certificate', name: 'Medical Certificate', required: true }
+            { type: 'medical_certificate', name: 'Medical Certificate', required: true },
+            { type: 'character_references', name: 'Character References', required: false }
+        ],
+        visitor: [
+            { type: 'travel_itinerary', name: 'Travel Itinerary', required: true },
+            { type: 'financial_records', name: 'Financial Evidence', required: true },
+            { type: 'accommodation_proof', name: 'Accommodation Proof', required: false }
+        ],
+        business: [
+            { type: 'business_plan', name: 'Business Plan', required: true },
+            { type: 'financial_records', name: 'Financial Evidence', required: true },
+            { type: 'business_registration', name: 'Business Registration', required: true }
         ]
     };
 
-    return [...commonDocs, ...(visaSpecificDocs[visaType] || [])];
+    const countryDocs = countrySpecificCommon[countryCode] || [];
+    const visaDocs = visaSpecificDocs[visaType] || [];
+
+    return [...commonDocs, ...countryDocs, ...visaDocs];
+}
+
+// Helper functions (stubs - implement based on your business logic)
+function calculateStageCompletion(application, documents) {
+    // Implementation for calculating completion of each stage
+    return {
+        consultation: 100,
+        documents: Math.round((documents.filter(d => d.status === 'approved').length / documents.length) * 100),
+        submission: application.stage === 'submitted_to_inz' ? 100 : 0,
+        decision: application.outcome ? 100 : 0
+    };
+}
+
+function getProgressBreakdown(stage) {
+    // Implementation for getting progress breakdown
+    const stages = {
+        consultation: { progress: 10, label: 'Initial Consultation' },
+        deposit_paid: { progress: 20, label: 'Deposit Paid' },
+        documents_completed: { progress: 50, label: 'Documents Completed' },
+        submitted_to_inz: { progress: 70, label: 'Submitted to Immigration' },
+        inz_processing: { progress: 80, label: 'Processing' },
+        decision: { progress: 100, label: 'Decision Received' }
+    };
+    return stages[stage] || { progress: 0, label: 'Unknown' };
 }
 
 module.exports = router;
@@ -572,9 +650,15 @@ module.exports = router;
  *       - in: query
  *         name: stage
  *         schema: { type: string }
+ *         description: Filter by application stage
  *       - in: query
  *         name: visaType
  *         schema: { type: string }
+ *         description: Filter by visa type
+ *       - in: query
+ *         name: countryCode
+ *         schema: { type: string, pattern: '^[A-Z]{2}$' }
+ *         description: Filter by destination country code (e.g., NZ, AU, CA)
  *       - in: query
  *         name: page
  *         schema: { type: integer, default: 1, minimum: 1 }
@@ -597,12 +681,26 @@ module.exports = router;
  *           schema:
  *             type: object
  *             properties:
- *               visaType: { type: string }
- *               consultationId: { type: string }
+ *               visaType:
+ *                 type: string
+ *                 enum: [work, partner, student, residence, visitor, business]
+ *               consultationId:
+ *                 type: string
+ *               destinationCountry:
+ *                 type: object
+ *                 properties:
+ *                   code:
+ *                     type: string
+ *                     pattern: '^[A-Z]{2}$'
+ *                     example: 'NZ'
+ *                     description: ISO 3166-1 alpha-2 country code
+ *                   name:
+ *                     type: string
+ *                     example: 'New Zealand'
  *             required: [visaType]
  *     responses:
  *       201: { description: Application created }
- *       400: { description: Already has active application }
+ *       400: { description: Invalid data or already has active application }
  *
  * /api/applications/my-applications:
  *   get:
@@ -641,7 +739,7 @@ module.exports = router;
  * /api/applications/{id}/submit-to-inz:
  *   patch:
  *     tags: [Applications]
- *     summary: Submit application to INZ (admin/adviser)
+ *     summary: Submit application to immigration authority (admin/adviser)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -659,7 +757,7 @@ module.exports = router;
  *               inzReference: { type: string }
  *             required: [inzReference]
  *     responses:
- *       200: { description: Submitted to INZ }
+ *       200: { description: Submitted to immigration authority }
  *       400: { description: Pending required documents }
  *
  * /api/applications/{id}/rfi:
@@ -749,259 +847,4 @@ module.exports = router;
  *     responses:
  *       200: { description: Dashboard data returned }
  *       404: { description: Application not found }
- *
- * /api/deadlines:
- *   get:
- *     tags: [Deadlines]
- *     summary: List deadlines (adviser/admin)
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum: [overdue, upcoming, completed, all]
- *         description: Filter by status; default excludes completed when not provided
- *       - in: query
- *         name: type
- *         schema:
- *           type: string
- *           enum: [rfi, ppi, medical, document]
- *         description: Filter by deadline type
- *       - in: query
- *         name: from
- *         schema:
- *           type: string
- *           format: date
- *         description: Include deadlines due on/after this date (ISO)
- *       - in: query
- *         name: to
- *         schema:
- *           type: string
- *           format: date
- *         description: Include deadlines due on/before this date (ISO)
- *       - in: query
- *         name: completed
- *         schema:
- *           type: boolean
- *         description: If provided, overrides status filter with explicit completed=true/false
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           minimum: 1
- *           default: 1
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 200
- *           default: 20
- *       - in: query
- *         name: sortBy
- *         schema:
- *           type: string
- *           enum: [dueDate]
- *           default: dueDate
- *       - in: query
- *         name: order
- *         schema:
- *           type: string
- *           enum: [asc, desc]
- *           default: asc
- *       - in: query
- *         name: includeSummary
- *         schema:
- *           type: boolean
- *           default: true
- *     responses:
- *       200:
- *         description: Deadlines returned
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/DeadlinesResponse'
- *       400: { description: Validation error }
- *       401: { description: Unauthorized }
- *       403: { description: Forbidden }
- *       500: { description: Server error }
- *
- * /api/deadlines/client/{clientId}:
- *   get:
- *     tags: [Deadlines]
- *     summary: List deadlines for a specific client (adviser/admin)
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: clientId
- *         required: true
- *         schema: { type: string }
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum: [overdue, upcoming, completed, all]
- *       - in: query
- *         name: type
- *         schema:
- *           type: string
- *           enum: [rfi, ppi, medical, document]
- *       - in: query
- *         name: from
- *         schema: { type: string, format: date }
- *       - in: query
- *         name: to
- *         schema: { type: string, format: date }
- *       - in: query
- *         name: completed
- *         schema: { type: boolean }
- *       - in: query
- *         name: page
- *         schema: { type: integer, minimum: 1, default: 1 }
- *       - in: query
- *         name: limit
- *         schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
- *       - in: query
- *         name: sortBy
- *         schema: { type: string, enum: [dueDate], default: dueDate }
- *       - in: query
- *         name: order
- *         schema: { type: string, enum: [asc, desc], default: asc }
- *       - in: query
- *         name: includeSummary
- *         schema: { type: boolean, default: true }
- *     responses:
- *       200:
- *         description: Client deadlines returned
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/DeadlinesResponse'
- *       400: { description: Validation error }
- *       401: { description: Unauthorized }
- *       403: { description: Forbidden }
- *       500: { description: Server error }
- *
- * /api/deadlines/me:
- *   get:
- *     tags: [Deadlines]
- *     summary: List deadlines for the authenticated client
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum: [overdue, upcoming, completed, all]
- *       - in: query
- *         name: type
- *         schema:
- *           type: string
- *           enum: [rfi, ppi, medical, document]
- *       - in: query
- *         name: from
- *         schema: { type: string, format: date }
- *       - in: query
- *         name: to
- *         schema: { type: string, format: date }
- *       - in: query
- *         name: completed
- *         schema: { type: boolean }
- *       - in: query
- *         name: page
- *         schema: { type: integer, minimum: 1, default: 1 }
- *       - in: query
- *         name: limit
- *         schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
- *       - in: query
- *         name: sortBy
- *         schema: { type: string, enum: [dueDate], default: dueDate }
- *       - in: query
- *         name: order
- *         schema: { type: string, enum: [asc, desc], default: asc }
- *       - in: query
- *         name: includeSummary
- *         schema: { type: boolean, default: true }
- *     responses:
- *       200:
- *         description: Client deadlines returned
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/DeadlinesResponse'
- *       400: { description: Validation error }
- *       401: { description: Unauthorized }
- *       500: { description: Server error }
- *
- * components:
- *   schemas:
- *     Deadline:
- *       type: object
- *       properties:
- *         type:
- *           type: string
- *           enum: [rfi, ppi, medical, document]
- *         description:
- *           type: string
- *           nullable: true
- *         dueDate:
- *           type: string
- *           format: date-time
- *         completed:
- *           type: boolean
- *     DeadlineItem:
- *       type: object
- *       properties:
- *         applicationId:
- *           type: string
- *         clientId:
- *           type: string
- *         adviserId:
- *           type: string
- *           nullable: true
- *         visaType:
- *           type: string
- *           enum: [work, partner, student, residence, visitor, business]
- *         stage:
- *           type: string
- *           enum:
- *             - consultation
- *             - deposit_paid
- *             - documents_completed
- *             - additional_docs_required
- *             - submitted_to_inz
- *             - inz_processing
- *             - rfi_received
- *             - ppi_received
- *             - decision
- *         deadline:
- *           $ref: '#/components/schemas/Deadline'
- *         overdue:
- *           type: boolean
- *         daysRemaining:
- *           type: integer
- *           description: Days until due date (negative if overdue)
- *     DeadlinesSummary:
- *       type: object
- *       properties:
- *         total: { type: integer }
- *         overdue: { type: integer }
- *         dueToday: { type: integer }
- *         dueSoon: { type: integer }
- *     DeadlinesResponse:
- *       type: object
- *       properties:
- *         page: { type: integer }
- *         limit: { type: integer }
- *         total: { type: integer }
- *         summary:
- *           $ref: '#/components/schemas/DeadlinesSummary'
- *         data:
- *           type: array
- *           items:
- *             $ref: '#/components/schemas/DeadlineItem'
  */
