@@ -93,6 +93,43 @@ router.post('/book', async (req, res) => {
     }
 });
 
+// Get consultations for logged-in client
+router.get('/my-consultations',
+  auth,
+  async (req, res) => {
+      try {
+          const { status, page = 1, limit = 20 } = req.query;
+
+          const filter = { clientId: req.user._id };
+          if (status) filter.status = status;
+
+          const consultations = await Consultation.find(filter)
+            .populate('adviserId', 'email profile')
+            .sort({ scheduledDate: -1 })
+            .limit(limit * 1)
+            .skip((page - 1) * limit);
+
+          const total = await Consultation.countDocuments(filter);
+
+          res.status(200).json({
+              success: true,
+              data: {
+                  consultations,
+                  totalPages: Math.ceil(total / limit),
+                  currentPage: page,
+                  total
+              }
+          });
+      } catch (error) {
+          res.status(500).json({
+              success: false,
+              message: 'Error fetching consultations',
+              error: error.message
+          });
+      }
+  }
+);
+
 // Get consultations (admin/adviser view)
 router.get('/',
     auth,
@@ -262,6 +299,30 @@ module.exports = router;
  *       200: { description: Consultations returned }
  *       401: { description: Unauthorized }
  *       403: { description: Forbidden }
+ *
+ * /api/consultation/my-consultations:
+ *   get:
+ *     tags: [Consultations]
+ *     summary: List consultations (signed in user)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema: { type: string }
+ *       - in: query
+ *         name: date
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, minimum: 1, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+ *     responses:
+ *       200: { description: Consultations returned }
+ *       401: { description: Unauthorized }
+ *       404: { description: Not found }
  *
  * /api/consultation/{id}/complete:
  *   patch:
