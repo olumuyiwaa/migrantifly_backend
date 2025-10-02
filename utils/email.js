@@ -1,3 +1,6 @@
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
+
 const nodemailer = require('nodemailer');
 const handlebars = require('handlebars');
 const fs = require('fs').promises;
@@ -13,7 +16,7 @@ const validateConfig = () => {
     }
 };
 
-// Create transporter with error handling
+
 const createTransporter = () => {
     try {
         validateConfig();
@@ -22,30 +25,34 @@ const createTransporter = () => {
             host: process.env.SMTP_HOST,
             port: Number(process.env.SMTP_PORT) || 587,
             secure: Number(process.env.SMTP_PORT) === 465,
+
+            // Helpful in production
+            pool: true,
+            maxConnections: 3,
+            maxMessages: 100,
+
             auth: {
                 user: process.env.SMTP_USER,
                 pass: process.env.SMTP_PASS
             },
-            connectionTimeout: 30000,  // Increased to 30s for slow networks
-            greetingTimeout: 30000,
-            socketTimeout: 45000,      // Increased to 45s
-            logger: true,
-            debug: true,
-            pool: true,                // Use connection pooling
-            maxConnections: 5,         // Max concurrent connections
-            maxMessages: 100,          // Max messages per connection
-            rateDelta: 1000,           // Rate limiting: 1 second between messages
-            rateLimit: 5               // Max 5 emails per rateDelta
+
+            // Allow overriding via env if needed
+            connectionTimeout: Number(process.env.SMTP_CONN_TIMEOUT || 20000),
+            greetingTimeout: Number(process.env.SMTP_GREET_TIMEOUT || 20000),
+            socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT || 60000),
+
+            // Enable debug logs via env
+            logger: process.env.EMAIL_DEBUG === 'true',
+            debug: process.env.EMAIL_DEBUG === 'true',
+
+            // Force IPv4
+            family: 4
         };
 
-        // Gmail-specific configuration
         if (process.env.SMTP_HOST?.includes('gmail')) {
             config.service = 'gmail';
-            config.tls = {
-                rejectUnauthorized: true
-            };
+            config.tls = { rejectUnauthorized: true };
         } else {
-            // Generic SMTP settings
             config.requireTLS = true;
             config.tls = {
                 minVersion: 'TLSv1.2',
@@ -59,6 +66,7 @@ const createTransporter = () => {
         throw error;
     }
 };
+
 
 const transporter = createTransporter();
 
