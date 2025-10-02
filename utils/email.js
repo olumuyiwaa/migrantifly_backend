@@ -13,7 +13,6 @@ const validateConfig = () => {
     }
 };
 
-// Create transporter with error handling
 const createTransporter = () => {
     try {
         validateConfig();
@@ -66,7 +65,7 @@ const verifyConnection = async () => {
     } catch (error) {
         console.error('✗ Email service connection failed:', error.message);
 
-        // Provide helpful error messages
+        //helpful error messages
         if (error.code === 'EAUTH') {
             console.error('Authentication failed. Check your SMTP credentials.');
             console.error('For Gmail: Make sure you\'re using an App Password, not your regular password.');
@@ -74,6 +73,7 @@ const verifyConnection = async () => {
             console.error('Socket connection failed. Check your SMTP host and port.');
         } else if (error.code === 'ETIMEDOUT') {
             console.error('Connection timed out. Check your network or firewall settings.');
+            console.error(error);
         }
 
         return false;
