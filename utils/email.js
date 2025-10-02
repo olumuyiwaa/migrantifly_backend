@@ -13,6 +13,7 @@ const validateConfig = () => {
     }
 };
 
+// Create transporter with error handling
 const createTransporter = () => {
     try {
         validateConfig();
@@ -25,11 +26,16 @@ const createTransporter = () => {
                 user: process.env.SMTP_USER,
                 pass: process.env.SMTP_PASS
             },
-            connectionTimeout: 10000,
-            greetingTimeout: 10000,
-            socketTimeout: 20000,
-            logger: process.env.NODE_ENV === 'development', // Enable logging in dev
-            debug: process.env.NODE_ENV === 'development'
+            connectionTimeout: 30000,  // Increased to 30s for slow networks
+            greetingTimeout: 30000,
+            socketTimeout: 45000,      // Increased to 45s
+            logger: true,
+            debug: true,
+            pool: true,                // Use connection pooling
+            maxConnections: 5,         // Max concurrent connections
+            maxMessages: 100,          // Max messages per connection
+            rateDelta: 1000,           // Rate limiting: 1 second between messages
+            rateLimit: 5               // Max 5 emails per rateDelta
         };
 
         // Gmail-specific configuration
@@ -65,7 +71,7 @@ const verifyConnection = async () => {
     } catch (error) {
         console.error('✗ Email service connection failed:', error.message);
 
-        //helpful error messages
+        // Provide helpful error messages
         if (error.code === 'EAUTH') {
             console.error('Authentication failed. Check your SMTP credentials.');
             console.error('For Gmail: Make sure you\'re using an App Password, not your regular password.');
@@ -73,7 +79,6 @@ const verifyConnection = async () => {
             console.error('Socket connection failed. Check your SMTP host and port.');
         } else if (error.code === 'ETIMEDOUT') {
             console.error('Connection timed out. Check your network or firewall settings.');
-            console.error(error);
         }
 
         return false;

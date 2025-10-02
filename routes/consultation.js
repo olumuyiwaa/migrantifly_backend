@@ -43,7 +43,7 @@ router.post('/book', async (req, res) => {
             const [firstName, ...rest] = (clientName || '').trim().split(/\s+/);
             client = new User({
                 email: clientEmail,
-                password: safeTempPassword, // temporary; to be changed during setup
+                password: "password123", // temporary; to be changed during setup
                 profile: {
                     firstName: firstName || 'Client',
                     lastName: rest.join(' '),
