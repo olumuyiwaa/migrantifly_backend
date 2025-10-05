@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const { Consultation, User } = require('../models');
 const { auth, authorize } = require('../middleware/auth');
 const { auditLogger } = require('../middleware/auditLog');
-const { sendEmail } = require('../utils/email');
+const { sendEmail , sendTestEmail} = require('../utils/email');
 const { generateClientToken } = require('../utils/tokenGenerator');
 
 const router = express.Router();

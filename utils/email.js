@@ -1,102 +1,22 @@
-const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first');
-
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const handlebars = require('handlebars');
 const fs = require('fs').promises;
 const path = require('path');
 
-// Validate required environment variables
+// Initialize Resend
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Validate configuration
 const validateConfig = () => {
-    const required = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'FROM_EMAIL'];
-    const missing = required.filter(key => !process.env[key]);
-
-    if (missing.length > 0) {
-        throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+    if (!process.env.RESEND_API_KEY) {
+        throw new Error('Missing RESEND_API_KEY environment variable');
+    }
+    if (!process.env.FROM_EMAIL) {
+        console.warn('FROM_EMAIL not set, using default: onboarding@resend.dev');
     }
 };
 
-
-const createTransporter = () => {
-    try {
-        validateConfig();
-
-        const config = {
-            host: process.env.SMTP_HOST,
-            port: Number(process.env.SMTP_PORT) || 587,
-            secure: Number(process.env.SMTP_PORT) === 465,
-
-            // Helpful in production
-            pool: true,
-            maxConnections: 3,
-            maxMessages: 100,
-
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS
-            },
-
-            // Allow overriding via env if needed
-            connectionTimeout: Number(process.env.SMTP_CONN_TIMEOUT || 20000),
-            greetingTimeout: Number(process.env.SMTP_GREET_TIMEOUT || 20000),
-            socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT || 60000),
-
-            // Enable debug logs via env
-            logger: process.env.EMAIL_DEBUG === 'true',
-            debug: process.env.EMAIL_DEBUG === 'true',
-
-            // Force IPv4
-            family: 4
-        };
-
-        if (process.env.SMTP_HOST?.includes('gmail')) {
-            config.service = 'gmail';
-            config.tls = { rejectUnauthorized: true };
-        } else {
-            config.requireTLS = true;
-            config.tls = {
-                minVersion: 'TLSv1.2',
-                rejectUnauthorized: process.env.NODE_ENV === 'production'
-            };
-        }
-
-        return nodemailer.createTransport(config);
-    } catch (error) {
-        console.error('Failed to create email transporter:', error);
-        throw error;
-    }
-};
-
-
-const transporter = createTransporter();
-
-// Verify transporter connection on startup
-const verifyConnection = async () => {
-    try {
-        await transporter.verify();
-        console.log('✓ Email service is ready to send emails');
-        return true;
-    } catch (error) {
-        console.error('✗ Email service connection failed:', error.message);
-
-        // Provide helpful error messages
-        if (error.code === 'EAUTH') {
-            console.error('Authentication failed. Check your SMTP credentials.');
-            console.error('For Gmail: Make sure you\'re using an App Password, not your regular password.');
-        } else if (error.code === 'ESOCKET') {
-            console.error('Socket connection failed. Check your SMTP host and port.');
-        } else if (error.code === 'ETIMEDOUT') {
-            console.error('Connection timed out. Check your network or firewall settings.');
-        }
-
-        return false;
-    }
-};
-
-// Call verification on module load (non-blocking)
-verifyConnection().catch(err => {
-    console.warn('Email verification skipped:', err.message);
-});
+validateConfig();
 
 // Cache for compiled templates
 const templateCache = new Map();
@@ -123,7 +43,7 @@ const loadTemplate = async (templateName) => {
     }
 };
 
-// Send email function with retry logic
+// Send email using Resend
 const sendEmail = async ({
     to,
     subject,
@@ -155,34 +75,40 @@ const sendEmail = async ({
             emailHtml = compiledTemplate(data || {});
         }
 
-        // Generate plain text from HTML if not provided
-        if (emailHtml && !emailText) {
-            emailText = emailHtml.replace(/<[^>]*>/g, ''); // Simple HTML stripping
-        }
-
-        const mailOptions = {
-            from: `"${process.env.FROM_NAME || 'Migrantifly'}" <${process.env.FROM_EMAIL}>`,
-            to,
+        // Prepare email payload
+        const emailData = {
+            from: `${process.env.FROM_NAME || 'Migrantifly'} <${process.env.FROM_EMAIL || 'onboarding@resend.dev'}>`,
+            to: Array.isArray(to) ? to : [to],
             subject,
-            html: emailHtml,
-            text: emailText
+            html: emailHtml
         };
 
         // Optional fields
-        if (cc) mailOptions.cc = cc;
-        if (bcc) mailOptions.bcc = bcc;
-        if (replyTo) mailOptions.replyTo = replyTo;
-        if (attachments) mailOptions.attachments = attachments;
+        if (emailText) emailData.text = emailText;
+        if (cc) emailData.cc = Array.isArray(cc) ? cc : [cc];
+        if (bcc) emailData.bcc = Array.isArray(bcc) ? bcc : [bcc];
+        if (replyTo) emailData.reply_to = replyTo;
 
-        const info = await transporter.sendMail(mailOptions);
+        if (attachments) {
+            emailData.attachments = attachments.map(att => ({
+                filename: att.filename,
+                content: att.content
+            }));
+        }
 
-        console.log(`✓ Email sent successfully to ${to}`);
-        console.log(`  Message ID: ${info.messageId}`);
+        // Send email via Resend
+        const response = await resend.emails.send(emailData);
+
+        if (response.error) {
+            throw new Error(response.error.message);
+        }
+
+        console.log(`✓ Email sent successfully to ${Array.isArray(to) ? to.join(', ') : to}`);
+        console.log(`  Email ID: ${response.data.id}`);
 
         return {
             success: true,
-            messageId: info.messageId,
-            response: info.response
+            id: response.data.id
         };
 
     } catch (error) {
@@ -191,47 +117,44 @@ const sendEmail = async ({
         // Retry logic for transient errors
         if (retries > 0 && isRetriableError(error)) {
             console.log(`  Retrying... (${retries} attempts left)`);
-            await sleep(2000); // Wait 2 seconds before retry
+            await sleep(2000);
             return sendEmail({ to, subject, template, data, html, text, attachments, cc, bcc, replyTo }, retries - 1);
         }
 
-        // Log detailed error info
+        // Log detailed error
         logEmailError(error, to);
-
         throw error;
     }
 };
 
 // Check if error is retriable
 const isRetriableError = (error) => {
-    const retriableCodes = ['ETIMEDOUT', 'ECONNRESET', 'ESOCKET', 'ENOTFOUND'];
-    return retriableCodes.includes(error.code);
+    const retriableMessages = ['timeout', 'network', 'ECONNRESET', 'ETIMEDOUT'];
+    return retriableMessages.some(msg => error.message?.toLowerCase().includes(msg));
 };
 
-// Sleep utility for retry
+// Sleep utility
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Log detailed error information
 const logEmailError = (error, recipient) => {
     console.error('Email Error Details:');
     console.error(`  Recipient: ${recipient}`);
-    console.error(`  Code: ${error.code || 'N/A'}`);
-    console.error(`  Command: ${error.command || 'N/A'}`);
+    console.error(`  Error: ${error.message}`);
 
-    if (error.code === 'EAUTH') {
+    if (error.message?.includes('Invalid API key')) {
         console.error('\n  Troubleshooting:');
-        console.error('  - For Gmail: Enable 2FA and use an App Password');
-        console.error('  - Generate App Password: https://myaccount.google.com/apppasswords');
-        console.error('  - Make sure "Less secure app access" is not needed with App Passwords');
-    } else if (error.code === 'EENVELOPE') {
+        console.error('  - Check that RESEND_API_KEY is set correctly');
+        console.error('  - Make sure the API key starts with "re_"');
+    } else if (error.message?.includes('not verified')) {
         console.error('\n  Troubleshooting:');
-        console.error('  - Check that FROM_EMAIL is valid and verified');
-        console.error('  - Check that recipient email is valid');
+        console.error('  - Verify your domain in Resend dashboard');
+        console.error('  - Or use onboarding@resend.dev for testing');
     }
 };
 
 // Bulk email sending with rate limiting
-const sendBulkEmails = async (emails, delayMs = 1000) => {
+const sendBulkEmails = async (emails, delayMs = 100) => {
     const results = [];
 
     for (let i = 0; i < emails.length; i++) {
@@ -247,7 +170,7 @@ const sendBulkEmails = async (emails, delayMs = 1000) => {
             });
         }
 
-        // Delay between emails to avoid rate limiting
+        // Delay between emails
         if (i < emails.length - 1) {
             await sleep(delayMs);
         }
@@ -259,20 +182,26 @@ const sendBulkEmails = async (emails, delayMs = 1000) => {
     return results;
 };
 
-// Test email function for debugging
+// Test email function
 const sendTestEmail = async (to) => {
     try {
-        console.log('Sending test email...');
-        console.log(`SMTP Host: ${process.env.SMTP_HOST}`);
-        console.log(`SMTP Port: ${process.env.SMTP_PORT}`);
-        console.log(`SMTP User: ${process.env.SMTP_USER}`);
-        console.log(`From Email: ${process.env.FROM_EMAIL}`);
+        console.log('Sending test email via Resend...');
+        console.log(`From Email: ${process.env.FROM_EMAIL || 'onboarding@resend.dev'}`);
+        console.log(`To: ${to}`);
 
         const result = await sendEmail({
             to,
             subject: 'Test Email - Migrantifly',
-            html: '<h1>Test Email</h1><p>If you received this, your email service is working correctly!</p>',
-            text: 'Test Email - If you received this, your email service is working correctly!'
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h1 style="color: #4CAF50;">Email Service Working!</h1>
+                    <p>If you received this, your Resend email service is configured correctly.</p>
+                    <p style="color: #666;">Sent via Resend API</p>
+                    <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
+                    <p style="color: #999; font-size: 12px;">Migrantifly - Immigration Management System</p>
+                </div>
+            `,
+            text: 'Test Email - If you received this, your Resend email service is working correctly!'
         });
 
         console.log('✓ Test email sent successfully!');
@@ -283,10 +212,30 @@ const sendTestEmail = async (to) => {
     }
 };
 
+// Verify Resend configuration
+const verifyConnection = async () => {
+    try {
+        if (!process.env.RESEND_API_KEY) {
+            throw new Error('RESEND_API_KEY not configured');
+        }
+        if (!process.env.RESEND_API_KEY.startsWith('re_')) {
+            console.warn('⚠️  Warning: RESEND_API_KEY should start with "re_"');
+        }
+        console.log('✓ Resend API key is configured');
+        return true;
+    } catch (error) {
+        console.error('✗ Resend configuration error:', error.message);
+        return false;
+    }
+};
+
+verifyConnection();
+
 module.exports = {
     sendEmail,
     sendBulkEmails,
     sendTestEmail,
-    verifyConnection,
-    transporter
+    verifyConnection
 };
+
+// gmail pass= mqqy irpu czeq tfgn

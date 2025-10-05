@@ -32,6 +32,7 @@
     "node-cron": "^3.0.2",
     "nodemailer": "^6.9.4",
     "pdfkit": "^0.13.0",
+    "resend": "^6.1.2",
     "socket.io": "^4.7.2",
     "stripe": "^13.6.0",
     "swagger-jsdoc": "^6.2.8",
