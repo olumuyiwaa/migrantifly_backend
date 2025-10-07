@@ -8,6 +8,8 @@ require('./Payment');
 require('./Consultation');
 require('./Agreement');
 require('./Notification');
+require('./AuditLog');
+
 
 // Export compiled models from mongoose.models
 module.exports = {
@@ -17,5 +19,6 @@ module.exports = {
   Payment: mongoose.models.Payment,
   Consultation: mongoose.models.Consultation,
   Agreement: mongoose.models.Agreement,
-  Notification: mongoose.models.Notification
+  Notification: mongoose.models.Notification,
+  AuditLog: mongoose.models.AuditLog
 };

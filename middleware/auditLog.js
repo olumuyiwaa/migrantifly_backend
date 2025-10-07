@@ -1,3 +1,5 @@
+const { AuditLog } = require('../models');
+
 const auditLogger = (action, entityType) => {
     return async (req, res, next) => {
         const originalSend = res.send;
