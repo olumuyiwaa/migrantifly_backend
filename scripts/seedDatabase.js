@@ -143,7 +143,7 @@ const seedDatabase = async () => {
                 method: 'zoom',
                 status: 'completed',
                 notes: 'Client interested in work visa. Has job offer from NZ company.',
-                visaPathways: ['work', 'partner', 'student', 'residence', 'visitor', 'business'],
+                visaPathways: ['work', 'business'],
                 clientToken: 'MF-12345-ABC123'
             },
             {
