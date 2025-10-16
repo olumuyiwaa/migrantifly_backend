@@ -24,24 +24,35 @@ const storage = multer.diskStorage({
     }
 });
 
+const ALLOWED_EXTS = new Set(['.jpeg', '.jpg', '.png', '.pdf', '.doc', '.docx']);
+const ALLOWED_MIMES = new Set([
+    'image/jpeg',
+    'image/png',
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
+
 const upload = multer({
     storage,
     limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB limit
+        fileSize: 10 * 1024 * 1024, // 10MB
     },
     fileFilter: (req, file, cb) => {
-        // Allow specific file types
-        const allowedTypes = /jpeg|jpg|png|pdf|doc|docx/;
-        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-        const mimetype = allowedTypes.test(file.mimetype);
+        const ext = path.extname(file.originalname).toLowerCase();
+        const isExtOk = ALLOWED_EXTS.has(ext);
+        const isMimeOk = ALLOWED_MIMES.has(file.mimetype);
 
-        if (mimetype && extname) {
+        // Optionally allow octet-stream if extension is valid (some clients send this)
+        const isOctetWithValidExt = file.mimetype === 'application/octet-stream' && isExtOk;
+
+        if (isExtOk && (isMimeOk || isOctetWithValidExt)) {
             return cb(null, true);
-        } else {
-            cb(new Error('Invalid file type. Only JPEG, PNG, PDF, DOC, and DOCX files are allowed.'));
         }
-    }
+        cb(new Error('Invalid file type. Only JPEG, PNG, PDF, DOC, and DOCX files are allowed.'));
+    },
 });
+
 
 // Get documents for an application
 router.get('/application/:applicationId', auth, async (req, res) => {

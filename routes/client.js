@@ -65,14 +65,14 @@ router.get('/dashboard', auth, authorize('client'), async (req, res) => {
 });
 
 // Update profile
-router.patch('/profile', auth, authorize('client'), async (req, res) => {
+router.patch('/profile', auth, async (req, res) => {
     try {
         const { profile } = req.body;
 
         const user = await User.findByIdAndUpdate(
-            req.user._id,
-            { profile },
-            { new: true, runValidators: true }
+          req.user._id,
+          { profile },
+          { new: true, runValidators: true }
         ).select('-password');
 
         res.status(200).json({
