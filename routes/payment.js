@@ -67,7 +67,7 @@ router.post('/create-deposit-payment',
                     clientId: req.user._id,
                     applicationId,
                     amount,
-                    currency: 'NZD',
+                    currency: 'USD',
                     type: 'deposit',
                     status: 'pending'
                 });
@@ -76,7 +76,7 @@ router.post('/create-deposit-payment',
 
                 const paymentIntent = await stripe.paymentIntents.create({
                     amount: Math.round(amount * 100),
-                    currency: 'nzd',
+                    currency: 'usd',
                     metadata: {
                         paymentId: payment._id.toString(),
                         applicationId: applicationId.toString(),
@@ -101,6 +101,7 @@ router.post('/create-deposit-payment',
                 throw error;
             }
         } catch (error) {
+            console.error("Payment creation failed:", error);
             res.status(500).json({
                 success: false,
                 message: 'Payment creation failed',

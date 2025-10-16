@@ -15,7 +15,7 @@ const paymentSchema = new mongoose.Schema({
     },
     currency: {
         type: String,
-        default: 'NZD'
+        default: 'USD'
     },
     type: {
         type: String,
