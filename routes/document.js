@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const os = require('os');
 const fs = require('fs').promises;
 const { Document, Application, Notification } = require('../models');
 const { auth, authorize } = require('../middleware/auth');
@@ -14,7 +15,7 @@ const router = express.Router();
 // Configure multer for file uploads
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '../uploads/temp');
+        const uploadDir = path.join(__dirname, '../tmp') || os.tmpdir();
         cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
