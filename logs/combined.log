@@ -1,0 +1,3 @@
+{"level":"info","message":"Server running on port 5005","service":"migrantifly-backend","timestamp":"2025-10-02T13:58:35.832Z"}
+{"level":"info","message":"Connected to MongoDB","service":"migrantifly-backend","timestamp":"2025-10-02T13:58:39.344Z"}
+{"level":"info","message":"::1 - - [02/Oct/2025:14:00:08 +0000] \"POST /api/consultation/book HTTP/1.1\" 201 157 \"-\" \"PostmanRuntime/7.45.0\"","service":"migrantifly-backend","timestamp":"2025-10-02T14:00:08.004Z"}

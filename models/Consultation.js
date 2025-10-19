@@ -1,12 +1,18 @@
 const mongoose = require('mongoose');
+
 const consultationSchema = new mongoose.Schema({
     clientId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+        ref: 'User',
+        required: true
     },
     adviserId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
+    },
+    paymentId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Payment'
     },
     type: {
         type: String,
@@ -15,7 +21,8 @@ const consultationSchema = new mongoose.Schema({
     },
     scheduledDate: {
         type: Date,
-        required: true
+        required: true,
+        index: true
     },
     duration: {
         type: Number,
@@ -28,15 +35,25 @@ const consultationSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['scheduled', 'completed', 'cancelled', 'rescheduled'],
-        default: 'scheduled'
+        enum: ['pending_payment', 'scheduled', 'completed', 'cancelled', 'rescheduled', 'no-show'],
+        default: 'pending_payment'
     },
     notes: String,
     visaPathways: [String],
     clientToken: String,
-    meetingLink: String
+    meetingLink: String,
+
+    // Rescheduling
+    rescheduledFrom: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Consultation'
+    },
+    rescheduleReason: String
 }, {
     timestamps: true
 });
+
+// Index for efficient slot checking
+consultationSchema.index({ scheduledDate: 1, status: 1 });
 
 module.exports.Consultation = mongoose.model('Consultation', consultationSchema);
