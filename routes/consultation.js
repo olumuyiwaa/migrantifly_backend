@@ -242,76 +242,76 @@ router.post('/book', async (req, res) => {
     }
 });
 
-// Confirm consultation after payment
-router.patch('/:id/confirm-booking',
-  auth,
-  async (req, res) => {
-      try {
-          const consultationId = req.params.id;
-          const consultation = await Consultation.findById(consultationId)
-            .populate('clientId');
+// Confirm consultation after payment (public - no auth required)
+router.patch('/:id/confirm-booking', async (req, res) => {
+    try {
+        const consultationId = req.params.id;
+        const { email } = req.body; // Verify ownership via email
 
-          if (!consultation) {
-              return res.status(404).json({
-                  success: false,
-                  message: 'Consultation not found'
-              });
-          }
+        const consultation = await Consultation.findById(consultationId)
+          .populate('clientId');
 
-          if (consultation.clientId._id.toString() !== req.user._id.toString()) {
-              return res.status(403).json({
-                  success: false,
-                  message: 'Unauthorized'
-              });
-          }
+        if (!consultation) {
+            return res.status(404).json({
+                success: false,
+                message: 'Consultation not found'
+            });
+        }
 
-          if (consultation.status !== 'pending_payment') {
-              return res.status(400).json({
-                  success: false,
-                  message: 'Consultation is not in pending payment status'
-              });
-          }
+        // Verify email matches
+        if (consultation.clientId.email !== email) {
+            return res.status(403).json({
+                success: false,
+                message: 'Email does not match consultation record'
+            });
+        }
 
-          // Update status
-          consultation.status = 'scheduled';
-          await consultation.save();
+        if (consultation.status !== 'pending_payment') {
+            return res.status(400).json({
+                success: false,
+                message: 'Consultation is not in pending payment status'
+            });
+        }
 
-          // Send confirmation email
-          try {
-              await sendEmail({
-                  to: consultation.clientId.email,
-                  subject: 'Consultation Confirmed - Migrantifly',
-                  template: 'consultation-confirmation',
-                  data: {
-                      clientName: consultation.clientId.profile.firstName,
-                      consultationDate: consultation.scheduledDate.toLocaleString(),
-                      method: consultation.method,
-                      consultationId: consultation._id,
-                      status: 'confirmed'
-                  }
-              });
-          } catch (emailErr) {
-              console.error('Email send failed:', emailErr?.message);
-          }
+        // Update status
+        consultation.status = 'scheduled';
+        await consultation.save();
 
-          res.status(200).json({
-              success: true,
-              message: 'Consultation confirmed successfully',
-              data: {
-                  consultationId: consultation._id,
-                  status: 'scheduled',
-                  scheduledDate: consultation.scheduledDate
-              }
-          });
-      } catch (error) {
-          res.status(500).json({
-              success: false,
-              message: 'Error confirming consultation',
-              error: error.message
-          });
-      }
-  }
-);
+        // Send confirmation email
+        try {
+            await sendEmail({
+                to: consultation.clientId.email,
+                subject: 'Consultation Confirmed - Migrantifly',
+                template: 'consultation-confirmation',
+                data: {
+                    clientName: consultation.clientId.profile.firstName,
+                    consultationDate: consultation.scheduledDate.toLocaleString(),
+                    method: consultation.method,
+                    consultationId: consultation._id,
+                    status: 'confirmed'
+                }
+            });
+        } catch (emailErr) {
+            console.error('Email send failed:', emailErr?.message);
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Consultation confirmed successfully',
+            data: {
+                consultationId: consultation._id,
+                status: 'scheduled',
+                scheduledDate: consultation.scheduledDate
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error confirming consultation',
+            error: error.message
+        });
+    }
+});
 
 // Cancel consultation (within 24 hours before = no refund)
 router.patch('/:id/cancel',
@@ -638,3 +638,12 @@ module.exports = router;
  *       403: { description: Forbidden }
  *       404: { description: Not found }
  */
+//
+// PATCH /:id/cancel endpoint handles cancellations
+//
+// New Endpoints:
+//
+//   GET /available-slots - Check available time slots for a date
+// POST /book - Reserve a slot (creates pending payment)
+// PATCH /:id/confirm-booking - Confirm after payment
+// PATCH /:id/cancel - Cancel with refund logic
