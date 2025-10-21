@@ -34,7 +34,24 @@ router.post('/create-consultation-payment', async (req, res) => {
         if (!consultationId || !paymentId || !amount || !email) {
             return res.status(400).json({
                 success: false,
-                message: 'Missing required fields'
+                message: 'Missing required fields: consultationId, paymentId, amount, email'
+            });
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid email format'
+            });
+        }
+
+        // Validate amount
+        if (typeof amount !== 'number' || amount <= 0 || amount > 10000) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid payment amount'
             });
         }
 
@@ -49,7 +66,8 @@ router.post('/create-consultation-payment', async (req, res) => {
             });
         }
 
-        if (consultation.clientId.email !== email) {
+        // Check email match (case-insensitive)
+        if (consultation.clientId.email.toLowerCase() !== email.toLowerCase()) {
             return res.status(403).json({
                 success: false,
                 message: 'Email does not match consultation record'
@@ -59,7 +77,7 @@ router.post('/create-consultation-payment', async (req, res) => {
         if (consultation.status !== 'pending_payment') {
             return res.status(400).json({
                 success: false,
-                message: 'Consultation is not pending payment'
+                message: `Consultation is not pending payment. Current status: ${consultation.status}`
             });
         }
 
@@ -68,14 +86,14 @@ router.post('/create-consultation-payment', async (req, res) => {
         if (!payment) {
             return res.status(404).json({
                 success: false,
-                message: 'Payment not found'
+                message: 'Payment record not found'
             });
         }
 
         if (payment.status !== 'pending') {
             return res.status(400).json({
                 success: false,
-                message: 'Payment has already been processed'
+                message: `Payment has already been processed. Current status: ${payment.status}`
             });
         }
 
@@ -91,7 +109,7 @@ router.post('/create-consultation-payment', async (req, res) => {
                         product_data: {
                             name: 'Migrantifly Consultation',
                             description: `Initial consultation scheduled for ${consultation.scheduledDate.toLocaleDateString()} at ${consultation.scheduledDate.toLocaleTimeString()}`,
-                            images: ['https://migrantifly.com/logo.png'], // Add your logo URL
+                            images: ['https://migrantifly.com/logo.png'],
                         },
                         unit_amount: Math.round(amount * 100), // Amount in cents
                     },
@@ -112,15 +130,17 @@ router.post('/create-consultation-payment', async (req, res) => {
         payment.transactionId = session.id;
         await payment.save();
 
+        console.log(`✅ Checkout session created: ${session.id} for consultation: ${consultationId}`);
+
         res.status(200).json({
             success: true,
             data: {
                 sessionId: session.id,
-                clientSecret: session.client_secret,
+                url: session.url, // Include the checkout URL
             }
         });
     } catch (error) {
-        console.error('Payment creation failed:', error);
+        console.error('❌ Payment creation failed:', error);
         res.status(500).json({
             success: false,
             message: 'Failed to initialize payment',
