@@ -181,6 +181,53 @@ router.post('/create-consultation-payment', async (req, res) => {
     }
 });
 
+
+//
+router.post('/verify-checkout-session', async (req, res) => {
+    try {
+        const { sessionId } = req.body;
+        if (!sessionId || typeof sessionId !== 'string') {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing or invalid sessionId'
+            });
+        }
+
+        // Retrieve the Checkout Session from Stripe
+        const session = await stripe.checkout.sessions.retrieve(sessionId, {
+            expand: ['payment_intent', 'customer_details'],
+        });
+
+        // Normalize fields
+        const paid = session.payment_status === 'paid';
+        const email =
+          session.customer_details?.email ||
+          session.customer_email ||
+          session.customer?.email ||
+          null;
+
+        res.status(200).json({
+            success: true,
+            data: {
+                paid,
+                email,
+                amount: session.amount_total ?? null,     // smallest currency unit
+                currency: session.currency ?? 'usd',
+                consultationId: session.metadata?.consultationId || null,
+                paymentId: session.metadata?.paymentId || null,
+                status: session.status,                   // e.g., 'complete'
+            }
+        });
+    } catch (err) {
+        console.error('Verify checkout session failed:', err?.message);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to verify checkout session',
+            error: process.env.NODE_ENV === 'development' ? err.message : undefined
+        });
+    }
+});
+
 // ============================================
 // PROTECTED ROUTES (AUTH REQUIRED)
 // ============================================
