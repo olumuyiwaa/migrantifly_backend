@@ -121,7 +121,7 @@ app.use('/api/client', auth,assertMiddleware('clientRoutes', clientRoutes));
 app.use('/api/admin', auth,assertMiddleware('adminRoutes', adminRoutes));
 app.use('/api/consultation', assertMiddleware('consultationRoutes',consultationRoutes));
 app.use('/api/documents', auth,assertMiddleware('documentRoutes', documentRoutes));
-app.use('/api/payments', auth, assertMiddleware('paymentRoutes',paymentRoutes));
+app.use('/api/payments', assertMiddleware('paymentRoutes', paymentRoutes));
 app.use('/api/applications', auth, assertMiddleware('applicationRoutes',applicationRoutes));
 app.use('/api/notifications', auth,assertMiddleware('notificationRoutes', notificationRoutes));
 app.use('/api', deadlinesRouter);
