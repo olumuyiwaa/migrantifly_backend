@@ -2,7 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { body, validationResult } = require('express-validator');
-const { Payment, Application, Agreement } = require('../models');
+const { Payment,Consultation, Application, Agreement } = require('../models');
 const { auth, authorize } = require('../middleware/auth');
 const { auditLogger } = require('../middleware/auditLog');
 const { generateInvoice } = require('../utils/invoiceGenerator');
@@ -20,6 +20,115 @@ const paymentValidation = [
         .isMongoId()
         .withMessage('Invalid application ID')
 ];
+
+/**
+ * Create Stripe Checkout Session for consultation payment
+ * PUBLIC ENDPOINT - No auth required
+ */
+
+router.post('/create-consultation-payment', async (req, res) => {
+    try {
+        const { consultationId, paymentId, amount, email } = req.body;
+
+        // Validate input
+        if (!consultationId || !paymentId || !amount || !email) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields'
+            });
+        }
+
+        // Verify consultation exists and matches email
+        const consultation = await Consultation.findById(consultationId)
+          .populate('clientId');
+
+        if (!consultation) {
+            return res.status(404).json({
+                success: false,
+                message: 'Consultation not found'
+            });
+        }
+
+        if (consultation.clientId.email !== email) {
+            return res.status(403).json({
+                success: false,
+                message: 'Email does not match consultation record'
+            });
+        }
+
+        if (consultation.status !== 'pending_payment') {
+            return res.status(400).json({
+                success: false,
+                message: 'Consultation is not pending payment'
+            });
+        }
+
+        // Verify payment record
+        const payment = await Payment.findById(paymentId);
+        if (!payment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Payment not found'
+            });
+        }
+
+        if (payment.status !== 'pending') {
+            return res.status(400).json({
+                success: false,
+                message: 'Payment has already been processed'
+            });
+        }
+
+        // Create Stripe Checkout Session
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            mode: 'payment',
+            customer_email: email,
+            line_items: [
+                {
+                    price_data: {
+                        currency: 'usd',
+                        product_data: {
+                            name: 'Migrantifly Consultation',
+                            description: `Initial consultation scheduled for ${consultation.scheduledDate.toLocaleDateString()} at ${consultation.scheduledDate.toLocaleTimeString()}`,
+                            images: ['https://migrantifly.com/logo.png'], // Add your logo URL
+                        },
+                        unit_amount: Math.round(amount * 100), // Amount in cents
+                    },
+                    quantity: 1,
+                },
+            ],
+            metadata: {
+                paymentId: paymentId.toString(),
+                consultationId: consultationId.toString(),
+                clientEmail: email,
+                type: 'consultation_fee',
+            },
+            success_url: `${process.env.FRONTEND_URL}/consultation-success?session_id={CHECKOUT_SESSION_ID}&consultationId=${consultationId}`,
+            cancel_url: `${process.env.FRONTEND_URL}/?canceled=true`,
+        });
+
+        // Update payment with session ID
+        payment.transactionId = session.id;
+        await payment.save();
+
+        res.status(200).json({
+            success: true,
+            data: {
+                sessionId: session.id,
+                clientSecret: session.client_secret,
+            }
+        });
+    } catch (error) {
+        console.error('Payment creation failed:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to initialize payment',
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        });
+    }
+});
+
 
 // Create payment intent for deposit with validation
 router.post('/create-deposit-payment',
@@ -256,6 +365,10 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
             const failedPayment = event.data.object;
             await handlePaymentFailure(failedPayment);
             break;
+        case 'checkout.session.completed':
+            const session = event.data.object;
+            await handleCheckoutSessionCompleted(session);
+            break;
 
         default:
             console.log(`Unhandled event type ${event.type}`);
@@ -290,6 +403,70 @@ async function handlePaymentSuccess(paymentIntent) {
         console.error('Error handling payment success:', error);
     }
 }
+
+//Helper function to handle successful checkout
+async function handleCheckoutSessionCompleted(session) {
+    try {
+        const paymentId = session.metadata.paymentId;
+        const consultationId = session.metadata.consultationId;
+        const email = session.metadata.clientEmail;
+
+        // Update payment status
+        const payment = await Payment.findByIdAndUpdate(
+          paymentId,
+          {
+              status: 'completed',
+              transactionId: session.id,
+              gatewayReference: session.payment_intent,
+          },
+          { new: true }
+        );
+
+        if (!payment) {
+            console.error('Payment not found:', paymentId);
+            return;
+        }
+
+        // Confirm consultation booking
+        const consultation = await Consultation.findByIdAndUpdate(
+          consultationId,
+          { status: 'scheduled' },
+          { new: true }
+        ).populate('clientId');
+
+        if (!consultation) {
+            console.error('Consultation not found:', consultationId);
+            return;
+        }
+
+        // Send confirmation emails
+        const { sendEmail } = require('../utils/email');
+
+        try {
+            await sendEmail({
+                to: email,
+                subject: 'Payment Confirmed - Your Consultation is Booked!',
+                template: 'consultation-payment-confirmed',
+                data: {
+                    clientName: consultation.clientId.profile.firstName,
+                    consultationDate: consultation.scheduledDate.toLocaleString(),
+                    consultationTime: consultation.scheduledDate.toLocaleTimeString(),
+                    method: consultation.method,
+                    consultationId: consultation._id,
+                    amount: payment.amount,
+                    meetingLink: consultation.meetingLink || 'Will be sent 24 hours before consultation'
+                }
+            });
+        } catch (emailErr) {
+            console.error('Failed to send confirmation email:', emailErr.message);
+        }
+
+        console.log(`Payment completed for consultation ${consultationId}`);
+    } catch (error) {
+        console.error('Error handling checkout session completed:', error);
+    }
+}
+
 
 // Helper function to handle failed payments
 async function handlePaymentFailure(paymentIntent) {
@@ -327,6 +504,142 @@ module.exports = router;
  *   - name: Payments
  *     description: Payment processing
  *
+ * components:
+ *   schemas:
+ *     PaymentType:
+ *       type: string
+ *       enum: [deposit, consultation_fee]
+ *     PaymentStatus:
+ *       type: string
+ *       enum: [pending, completed, failed]
+ *     Payment:
+ *       type: object
+ *       properties:
+ *         _id:
+ *           type: string
+ *           example: "PAYMENT_ID_PLACEHOLDER"
+ *         clientId:
+ *           type: string
+ *           example: "CLIENT_ID_PLACEHOLDER"
+ *         applicationId:
+ *           type: string
+ *           nullable: true
+ *           example: "APPLICATION_ID_PLACEHOLDER"
+ *         amount:
+ *           type: number
+ *           example: 100
+ *         currency:
+ *           type: string
+ *           example: USD
+ *         type:
+ *           $ref: '#/components/schemas/PaymentType'
+ *         status:
+ *           $ref: '#/components/schemas/PaymentStatus'
+ *         transactionId:
+ *           type: string
+ *           example: "pi_1234567890"
+ *         gatewayReference:
+ *           type: string
+ *           example: "pi_1234567890"
+ *         invoiceUrl:
+ *           type: string
+ *           format: uri
+ *           nullable: true
+ *         invoiceNumber:
+ *           type: string
+ *           nullable: true
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ *     ErrorResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: false
+ *         message:
+ *           type: string
+ *         error:
+ *           type: string
+ *           nullable: true
+ *
+ * /api/payments/create-consultation-payment:
+ *   post:
+ *     tags: [Payments]
+ *     summary: Create a Stripe Checkout Session for a consultation payment
+ *     description: Public endpoint to initialize a Checkout Session for consultation fees.
+ *     security: []  # Overrides global security; this endpoint is public
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               consultationId:
+ *                 type: string
+ *                 example: "CONSULTATION_ID_PLACEHOLDER"
+ *               paymentId:
+ *                 type: string
+ *                 example: "PAYMENT_ID_PLACEHOLDER"
+ *               amount:
+ *                 type: number
+ *                 minimum: 0.01
+ *                 example: 49.99
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "client@example.com"
+ *             required: [consultationId, paymentId, amount, email]
+ *     responses:
+ *       200:
+ *         description: Checkout session created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     sessionId:
+ *                       type: string
+ *                       example: "cs_test_a1B2c3D4"
+ *                     clientSecret:
+ *                       type: string
+ *                       nullable: true
+ *                       example: "seti_123_secret_abc"
+ *       400:
+ *         description: Missing or invalid fields
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Email does not match consultation record
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Consultation or Payment not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *
  * /api/payments/create-deposit-payment:
  *   post:
  *     tags: [Payments]
@@ -340,13 +653,41 @@ module.exports = router;
  *           schema:
  *             type: object
  *             properties:
- *               applicationId: { type: string }
- *               amount: { type: number, minimum: 0.01 }
+ *               applicationId: { type: string, example: "APPLICATION_ID_PLACEHOLDER" }
+ *               amount: { type: number, minimum: 0.01, example: 500 }
  *             required: [applicationId, amount]
  *     responses:
- *       200: { description: Client secret returned }
- *       400: { description: Validation error }
- *       404: { description: Application not found }
+ *       200:
+ *         description: Client secret returned
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean, example: true }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     clientSecret: { type: string, example: "pi_123_secret_abc" }
+ *                     paymentId: { type: string, example: "PAYMENT_ID_PLACEHOLDER" }
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Application not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *
  * /api/payments/confirm-payment:
  *   post:
@@ -361,13 +702,46 @@ module.exports = router;
  *           schema:
  *             type: object
  *             properties:
- *               paymentId: { type: string }
- *               paymentIntentId: { type: string }
+ *               paymentId: { type: string, example: "PAYMENT_ID_PLACEHOLDER" }
+ *               paymentIntentId: { type: string, example: "pi_1234567890" }
  *             required: [paymentId, paymentIntentId]
  *     responses:
- *       200: { description: Payment confirmed and invoice generated }
- *       400: { description: Payment failed }
- *       404: { description: Payment not found }
+ *       200:
+ *         description: Payment confirmed and invoice generated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean, example: true }
+ *                 message: { type: string, example: "Payment confirmed successfully" }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     payment:
+ *                       $ref: '#/components/schemas/Payment'
+ *                     invoiceUrl:
+ *                       type: string
+ *                       format: uri
+ *                       example: "https://example.com/invoices/INV-123.pdf"
+ *       400:
+ *         description: Payment failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Payment not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *
  * /api/payments/history:
  *   get:
@@ -376,7 +750,24 @@ module.exports = router;
  *     security:
  *       - bearerAuth: []
  *     responses:
- *       200: { description: Payment list returned }
+ *       200:
+ *         description: Payment list returned
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean, example: true }
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Payment'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *
  * /api/payments/webhook:
  *   post:
@@ -384,6 +775,13 @@ module.exports = router;
  *     summary: Stripe webhook endpoint
  *     description: This endpoint is called by Stripe. Do not add authentication.
  *     security: []
+ *     parameters:
+ *       - name: Stripe-Signature
+ *         in: header
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Stripe signature header used to verify the webhook payload
  *     requestBody:
  *       required: true
  *       content:
@@ -391,6 +789,21 @@ module.exports = router;
  *           schema:
  *             type: object
  *     responses:
- *       200: { description: Webhook received }
- *       400: { description: Invalid signature }
+ *       200:
+ *         description: Webhook received
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 received:
+ *                   type: boolean
+ *                   example: true
+ *       400:
+ *         description: Invalid signature
+ *         content:
+ *           text/plain:
+ *             schema:
+ *               type: string
+ *               example: "Webhook Error: Signature verification failed"
  */
