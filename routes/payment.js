@@ -209,6 +209,8 @@ router.post('/create-deposit-payment',
             } catch (error) {
                 await session.abortTransaction();
                 throw error;
+            } finally {
+                session.endSession();
             }
         } catch (error) {
             console.error("Payment creation failed:", error);
@@ -407,6 +409,12 @@ async function handlePaymentSuccess(paymentIntent) {
 //Helper function to handle successful checkout
 async function handleCheckoutSessionCompleted(session) {
     try {
+        const paymentType = session.metadata.type;
+
+        if (paymentType !== 'consultation_fee') {
+            console.log(`Skipping checkout session for type: ${paymentType}`);
+            return;
+        }
         const paymentId = session.metadata.paymentId;
         const consultationId = session.metadata.consultationId;
         const email = session.metadata.clientEmail;
