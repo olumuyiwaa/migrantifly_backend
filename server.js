@@ -87,8 +87,22 @@ app.use(assertMiddleware ('cors',cors({
 app.options('*', (req, res) => res.sendStatus(200));
 
 // Body parsing middleware
-app.use(assertMiddleware('express.json', express.json({ limit: '10mb' })));
-app.use(assertMiddleware('express.urlencoded', express.urlencoded({ extended: true, limit: '10mb' })));
+// app.use(assertMiddleware('express.json', express.json({ limit: '10mb' })));
+// app.use(assertMiddleware('express.urlencoded', express.urlencoded({ extended: true, limit: '10mb' })));
+
+const STRIPE_WEBHOOK_PATH = '/api/payments/webhook';
+const shouldSkipBodyParsing = (req) => req.originalUrl === STRIPE_WEBHOOK_PATH;
+
+app.use((req, res, next) => {
+    if (shouldSkipBodyParsing(req)) return next();
+    return assertMiddleware('express.json', express.json({ limit: '10mb' }))(req, res, next);
+});
+
+app.use((req, res, next) => {
+    if (shouldSkipBodyParsing(req)) return next();
+    return assertMiddleware('express.urlencoded', express.urlencoded({ extended: true, limit: '10mb' }))(req, res, next);
+});
+
 
 // Logging
 app.use(assertMiddleware('morgan', morgan('combined', { stream: { write: message => logger.info(message.trim()) } })));
