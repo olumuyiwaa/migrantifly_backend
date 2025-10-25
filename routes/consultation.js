@@ -266,10 +266,17 @@ router.patch('/:id/confirm-booking', async (req, res) => {
             });
         }
 
-        if (consultation.status !== 'pending_payment') {
+        if (consultation.status === 'pending_payment') {
             return res.status(400).json({
                 success: false,
-                message: 'Consultation is not in pending payment status'
+                message: 'Payment not completed yet'
+            });
+        }
+
+        if (consultation.status === 'cancelled') {
+            return res.status(400).json({
+                success: false,
+                message: 'Consultation is cancelled'
             });
         }
 
