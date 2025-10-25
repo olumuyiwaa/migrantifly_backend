@@ -129,6 +129,12 @@ router.post('/create-consultation-payment', async (req, res) => {
             });
         }
 
+        // Ensure DB linkage for easier admin queries
+        if (!payment.consultationId) {
+            payment.consultationId = consultationId;
+            await payment.save();
+        }
+
         // Create Stripe Checkout Session
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
@@ -205,6 +211,39 @@ router.post('/verify-checkout-session', async (req, res) => {
           session.customer_email ||
           session.customer?.email ||
           null;
+
+        // If Stripe confirms paid, finalize state in our DB (webhook fallback)
+        if (paid) {
+            const paymentId = session.metadata?.paymentId || null;
+            const metaConsultationId = session.metadata?.consultationId || null;
+
+            try {
+                if (paymentId) {
+                    const payment = await Payment.findById(paymentId);
+                    if (payment && payment.status !== 'completed') {
+                        payment.status = 'completed';
+                        payment.transactionId = session.id; // keep checkout session id
+                        payment.gatewayReference = session.payment_intent?.toString() || payment.gatewayReference;
+                        if (!payment.consultationId && metaConsultationId) {
+                            payment.consultationId = metaConsultationId;
+                        }
+                        await payment.save();
+                    }
+                }
+
+                // Idempotently schedule the consultation if present
+                if (metaConsultationId) {
+                    await Consultation.findOneAndUpdate(
+                      { _id: metaConsultationId, status: { $ne: 'scheduled' } },
+                      { status: 'scheduled' },
+                      { new: true }
+                    );
+                }
+            } catch (finalizeErr) {
+                // Don't fail the verify call for admin UX; just log
+                console.error('Finalize after verify failed:', finalizeErr?.message);
+            }
+        }
 
         res.status(200).json({
             success: true,
@@ -463,7 +502,10 @@ router.get('/history', auth, async (req, res) => {
 async function handlePaymentSuccess(paymentIntent) {
     try {
         const payment = await Payment.findOne({
-            transactionId: paymentIntent.id
+            $or: [
+                { transactionId: paymentIntent.id },     // PaymentIntent flow
+                { gatewayReference: paymentIntent.id }    // Checkout flow: stored here
+            ]
         });
 
         if (payment && payment.status !== 'completed') {
