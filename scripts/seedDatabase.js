@@ -101,27 +101,27 @@ const seedDatabase = async () => {
                     isEmailVerified: true,
                     isActive: true
                 },
-                {
-                    email: 'alice.smith@example.com',
-                    password: 'password123',
-                    role: 'client',
-                    profile: {
-                        firstName: 'Alice',
-                        lastName: 'Smith',
-                        phone: '+64-21-555-1111',
-                        dateOfBirth: new Date('1992-07-10'),
-                        nationality: 'Australian',
-                        address: {
-                            street: '789 King Street',
-                            city: 'Christchurch',
-                            state: 'Canterbury',
-                            country: 'New Zealand',
-                            postalCode: '8011'
-                        }
-                    },
-                    isEmailVerified: true,
-                    isActive: true
-                },
+                // {
+                //     email: 'alice.smith@example.com',
+                //     password: 'password123',
+                //     role: 'client',
+                //     profile: {
+                //         firstName: 'Alice',
+                //         lastName: 'Smith',
+                //         phone: '+64-21-555-1111',
+                //         dateOfBirth: new Date('1992-07-10'),
+                //         nationality: 'Australian',
+                //         address: {
+                //             street: '789 King Street',
+                //             city: 'Christchurch',
+                //             state: 'Canterbury',
+                //             country: 'New Zealand',
+                //             postalCode: '8011'
+                //         }
+                //     },
+                //     isEmailVerified: true,
+                //     isActive: true
+                // },
             ];
 
             const createdClients = [];
