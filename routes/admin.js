@@ -260,6 +260,113 @@ router.patch('/applications/:id/assign-adviser',
     }
 );
 
+// Assign adviser to consultation
+router.patch('/consultations/:id/assign-adviser',
+  auth,
+  authorize('admin'),
+  auditLogger('assign_adviser', 'consultation'),
+  async (req, res) => {
+      try {
+          const mongoose = require('mongoose');
+          const { adviserId } = req.body;
+          const consultationId = req.params.id;
+
+          // Validate ObjectIds
+          if (!mongoose.isValidObjectId(consultationId)) {
+              return res.status(400).json({
+                  success: false,
+                  message: 'Invalid consultation ID'
+              });
+          }
+          if (!mongoose.isValidObjectId(adviserId)) {
+              return res.status(400).json({
+                  success: false,
+                  message: 'Invalid adviser ID'
+              });
+          }
+
+          // Fetch consultation basics first
+          const consultation = await Consultation.findById(consultationId)
+            .select('_id adviserId clientId status');
+          if (!consultation) {
+              return res.status(404).json({
+                  success: false,
+                  message: 'Consultation not found'
+              });
+          }
+
+          // Guard against assigning to cancelled/completed consultations
+          if (['cancelled', 'completed'].includes(consultation.status)) {
+              return res.status(400).json({
+                  success: false,
+                  message: `Cannot assign adviser to a ${consultation.status} consultation`
+              });
+          }
+
+          // Verify adviser exists and is active
+          const adviser = await User.findOne({
+              _id: adviserId,
+              role: 'adviser',
+              isActive: true
+          }).select('_id profile.firstName profile.lastName');
+          if (!adviser) {
+              return res.status(404).json({
+                  success: false,
+                  message: 'Adviser not found or inactive'
+              });
+          }
+
+          // Idempotency: already assigned to this adviser
+          if (consultation.adviserId && consultation.adviserId.toString() === adviserId) {
+              return res.status(200).json({
+                  success: true,
+                  message: 'Adviser already assigned',
+                  data: { consultationId: consultation._id, adviserId }
+              });
+          }
+
+          // Perform atomic update
+          const updated = await Consultation.findByIdAndUpdate(
+            consultationId,
+            { $set: { adviserId } },
+            { new: true, runValidators: true }
+          );
+
+          // Notify client (do not fail assignment if notification fails)
+          try {
+              const { sendNotification } = require('../utils/notifications');
+              const fullName = [adviser.profile?.firstName, adviser.profile?.lastName]
+                .filter(Boolean)
+                .join(' ') || 'your adviser';
+
+              await sendNotification({
+                  userId: updated.clientId,
+                  consultationId: updated._id,
+                  type: 'general',
+                  title: 'Adviser Assigned',
+                  message: `${fullName} has been assigned as your adviser`,
+                  priority: 'medium'
+              });
+          } catch (notifyErr) {
+              // Log and continue
+              console.error('Notification error (assign-adviser):', notifyErr?.message);
+          }
+
+          return res.status(200).json({
+              success: true,
+              message: 'Adviser assigned successfully',
+              data: updated
+          });
+      } catch (error) {
+          return res.status(500).json({
+              success: false,
+              message: 'Error assigning adviser',
+              error: error.message
+          });
+      }
+  }
+);
+
 // System health check
 router.get('/system-health',
     auth,
