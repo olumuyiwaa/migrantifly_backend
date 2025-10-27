@@ -119,22 +119,31 @@ function parseCloudinaryUrl(fileUrl) {
 //     }
 // };
 
+function sanitizePublicId(name) {
+    return name
+      .replace(/[^\w\-./]/g, '-')   // allow letters, numbers, _, -, ., /
+      .replace(/-{2,}/g, '-')
+      .replace(/^\.+|\.+$/g, '');   // trim leading/trailing dots
+}
+
 async function uploadToCloudStorage(localFilePath, { folder = 'uploads', filename, mimeType } = {}) {
     const resource_type = pickResourceType(mimeType || localFilePath);
     const desiredName = filename || path.basename(localFilePath);
     const { base } = splitNameAndExt(desiredName);
+
     const public_id = sanitizePublicId([folder, base].filter(Boolean).join('/'));
 
     const result = await cloudinary.uploader.upload(localFilePath, {
         resource_type,
         public_id,
-        type: 'private', // keep non-public; requires signed download URLs
+        type: 'private',
         overwrite: true,
         invalidate: true,
     });
 
-    return result.secure_url; // store this string in your DB
+    return result.secure_url;
 }
+
 
 async function deleteFromCloudStorage(fileUrl) {
     if (!fileUrl) return;
@@ -173,5 +182,5 @@ function generateSecureDownloadUrl(fileUrl, { expiresInSeconds = 3600, attachmen
 module.exports = {
     uploadToCloudStorage,
     deleteFromCloudStorage,
-    generateSecureDownloadUrl
+    generateSecureDownloadUrl,
 };
