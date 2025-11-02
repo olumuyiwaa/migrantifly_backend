@@ -278,96 +278,96 @@ const paymentValidation = [
 ];
 
 // Create payment intent for deposit with validation
-router.post('/create-deposit-payment',
-  auth,
-  paymentValidation,
-  async (req, res) => {
-      try {
-          const errors = validationResult(req);
-          if (!errors.isEmpty()) {
-              return res.status(400).json({
-                  success: false,
-                  errors: errors.array()
-              });
-          }
-
-          const { applicationId, amount } = req.body;
-
-          // Transaction handling
-          const session = await mongoose.startSession();
-          session.startTransaction();
-
-          try {
-              const application = await Application.findOne({
-                  _id: applicationId,
-                  clientId: req.user._id
-              }).session(session);
-
-              if (!application) {
-                  await session.abortTransaction();
-                  return res.status(404).json({
-                      success: false,
-                      message: 'Application not found'
-                  });
-              }
-
-              // Validate payment amount against application requirements
-              if (amount !== application.depositAmount) {
-                  await session.abortTransaction();
-                  return res.status(400).json({
-                      success: false,
-                      message: 'Invalid deposit amount'
-                  });
-              }
-
-              const payment = new Payment({
-                  clientId: req.user._id,
-                  applicationId,
-                  amount,
-                  currency: 'USD',
-                  type: 'deposit',
-                  status: 'pending'
-              });
-
-              await payment.save({ session });
-
-              const paymentIntent = await stripe.paymentIntents.create({
-                  amount: Math.round(amount * 100),
-                  currency: 'usd',
-                  metadata: {
-                      paymentId: payment._id.toString(),
-                      applicationId: applicationId.toString(),
-                      clientId: req.user._id.toString(),
-                      type: 'deposit'
-                  }
-              });
-
-              payment.transactionId = paymentIntent.id;
-              await payment.save({ session });
-              await session.commitTransaction();
-
-              res.status(200).json({
-                  success: true,
-                  data: {
-                      clientSecret: paymentIntent.client_secret,
-                      paymentId: payment._id
-                  }
-              });
-          } catch (error) {
-              await session.abortTransaction();
-              throw error;
-          } finally {
-              session.endSession();
-          }
-      } catch (error) {
-          console.error("Payment creation failed:", error);
-          res.status(500).json({
-              success: false,
-              message: 'Payment creation failed',
-              error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-          });
-      }
-  });
+// router.post('/create-deposit-payment',
+//   auth,
+//   paymentValidation,
+//   async (req, res) => {
+//       try {
+//           const errors = validationResult(req);
+//           if (!errors.isEmpty()) {
+//               return res.status(400).json({
+//                   success: false,
+//                   errors: errors.array()
+//               });
+//           }
+//
+//           const { applicationId, amount } = req.body;
+//
+//           // Transaction handling
+//           const session = await mongoose.startSession();
+//           session.startTransaction();
+//
+//           try {
+//               const application = await Application.findOne({
+//                   _id: applicationId,
+//                   clientId: req.user._id
+//               }).session(session);
+//
+//               if (!application) {
+//                   await session.abortTransaction();
+//                   return res.status(404).json({
+//                       success: false,
+//                       message: 'Application not found'
+//                   });
+//               }
+//
+//               // Validate payment amount against application requirements
+//               if (amount !== application.depositAmount) {
+//                   await session.abortTransaction();
+//                   return res.status(400).json({
+//                       success: false,
+//                       message: 'Invalid deposit amount'
+//                   });
+//               }
+//
+//               const payment = new Payment({
+//                   clientId: req.user._id,
+//                   applicationId,
+//                   amount,
+//                   currency: 'USD',
+//                   type: 'deposit',
+//                   status: 'pending'
+//               });
+//
+//               await payment.save({ session });
+//
+//               const paymentIntent = await stripe.paymentIntents.create({
+//                   amount: Math.round(amount * 100),
+//                   currency: 'usd',
+//                   metadata: {
+//                       paymentId: payment._id.toString(),
+//                       applicationId: applicationId.toString(),
+//                       clientId: req.user._id.toString(),
+//                       type: 'deposit'
+//                   }
+//               });
+//
+//               payment.transactionId = paymentIntent.id;
+//               await payment.save({ session });
+//               await session.commitTransaction();
+//
+//               res.status(200).json({
+//                   success: true,
+//                   data: {
+//                       clientSecret: paymentIntent.client_secret,
+//                       paymentId: payment._id
+//                   }
+//               });
+//           } catch (error) {
+//               await session.abortTransaction();
+//               throw error;
+//           } finally {
+//               session.endSession();
+//           }
+//       } catch (error) {
+//           console.error("Payment creation failed:", error);
+//           res.status(500).json({
+//               success: false,
+//               message: 'Payment creation failed',
+//               error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+//           });
+//       }
+//   });
 
 
 router.post('/create-deposit-checkout',
