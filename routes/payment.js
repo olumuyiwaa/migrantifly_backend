@@ -209,14 +209,19 @@ router.post('/verify-checkout-session', async (req, res) => {
           session.customer_email ||
           session.customer?.email ||
           null;
+        const meta = session.metadata || {};
+        const type = meta.type;
+        const paymentId = meta.paymentId || null;
+        let payment = null;
+
+
 
         if (paid) {
-            const paymentId = session.metadata?.paymentId || null;
             const metaConsultationId = session.metadata?.consultationId || null;
 
             try {
                 if (paymentId) {
-                    const payment = await Payment.findById(paymentId);
+                    payment = await Payment.findById(paymentId);
                     if (payment && payment.status !== 'completed') {
                         payment.status = 'completed';
                         payment.transactionId = session.id;
@@ -225,6 +230,42 @@ router.post('/verify-checkout-session', async (req, res) => {
                             payment.consultationId = metaConsultationId;
                         }
                         await payment.save();
+                    }
+                }
+
+                // If deposit, update application + invoice (in case webhook hasn’t run yet)
+                if (type === 'deposit' && meta.applicationId) {
+                    const application = await Application.findById(meta.applicationId);
+                    if (application && application.stage === 'consultation') {
+                        application.stage = 'deposit_paid';
+                        application.progress = 20;
+                        application.timeline.push({
+                            stage: 'deposit_paid',
+                            date: new Date(),
+                            notes: 'Deposit payment received (Verify)',
+                            // Prefer payment.clientId, then metadata clientId, then app client
+                            updatedBy: (payment && payment.clientId) || meta.clientId || application.clientId
+                        });
+                        await application.save();
+                    }
+
+                    if (payment && !payment.invoiceUrl) {
+                        const invoiceNumber = `INV-${Date.now()}`;
+                        try {
+                            const invoiceUrl = await generateInvoice({
+                                payment,
+                                client: {
+                                    _id: payment.clientId,
+                                    email: session.customer_details?.email || session.customer_email
+                                },
+                                invoiceNumber
+                            });
+                            payment.invoiceUrl = invoiceUrl;
+                            payment.invoiceNumber = invoiceNumber;
+                            await payment.save();
+                        } catch (invErr) {
+                            console.error('Invoice generation failed after verify:', invErr?.message);
+                        }
                     }
                 }
 
@@ -248,9 +289,15 @@ router.post('/verify-checkout-session', async (req, res) => {
                 email,
                 amount: session.amount_total ?? null,
                 currency: session.currency ?? 'usd',
-                consultationId: session.metadata?.consultationId || null,
+                // applicationId: session.metadata?.applicationId || null,
+                consultationId: session.metadata?.consultationId || session.metadata?.applicationId || null,
                 paymentId: session.metadata?.paymentId || null,
                 status: session.status,
+                invoiceUrl: paid ? (await (async () => {
+                    const p = paymentId ? await Payment.findById(paymentId) : null;
+                    return p?.invoiceUrl || null;
+                })()) : null
+
             }
         });
     } catch (err) {
@@ -421,8 +468,8 @@ router.post('/create-deposit-checkout',
                   applicationId: applicationId.toString(),
                   clientId: req.user._id.toString(),
               },
-              success_url: `${process.env.FRONTEND_URL}/payments/deposit-success?session_id={CHECKOUT_SESSION_ID}&applicationId=${applicationId}`,
-              cancel_url: `${process.env.FRONTEND_URL}/payments/deposit-cancelled?applicationId=${applicationId}`,
+              success_url: `${process.env.FRONTEND_URL}/consultation-success?session_id={CHECKOUT_SESSION_ID}&applicationId=${applicationId}`,
+              cancel_url: `${process.env.FRONTEND_URL}/?canceled=true`,
           });
 
           // Link transaction to payment
