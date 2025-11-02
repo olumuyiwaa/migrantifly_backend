@@ -11,6 +11,8 @@ const router = express.Router();
 // Configuration
 const CONSULTATION_FEE = 50; // USD
 const SLOT_DURATION = 60; // minutes
+// Hold window for unpaid consultations before auto-delete (TTL)
+const HOLD_MINUTES = parseInt(process.env.CONSULTATION_HOLD_MINUTES || '30', 10);
 
 /**
  * Check if a slot is available
@@ -202,7 +204,9 @@ router.post('/book', async (req, res) => {
             duration: SLOT_DURATION,
             method: normalizedMethod,
             status: 'pending_payment',
-            notes: message
+            notes: message,
+            // Set TTL expiration for unpaid booking
+            expiresAt: new Date(Date.now() + HOLD_MINUTES * 60 * 1000)
         });
         await consultation.save();
 

@@ -48,12 +48,19 @@ const consultationSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Consultation'
     },
-    rescheduleReason: String
+    rescheduleReason: String,
+    // Auto-delete unpaid reservations after a hold window
+    expiresAt: {
+        type: Date
+    }
 }, {
     timestamps: true
 });
 
 // Index for efficient slot checking
 consultationSchema.index({ scheduledDate: 1, status: 1 });
+
+// TTL index: deletes the doc when expiresAt < now
+consultationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports.Consultation = mongoose.model('Consultation', consultationSchema);

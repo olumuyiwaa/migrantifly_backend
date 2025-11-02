@@ -199,12 +199,10 @@ router.post('/verify-checkout-session', async (req, res) => {
             });
         }
 
-        // Retrieve the Checkout Session from Stripe
         const session = await stripe.checkout.sessions.retrieve(sessionId, {
             expand: ['payment_intent', 'customer_details'],
         });
 
-        // Normalize fields
         const paid = session.payment_status === 'paid';
         const email =
           session.customer_details?.email ||
@@ -212,7 +210,6 @@ router.post('/verify-checkout-session', async (req, res) => {
           session.customer?.email ||
           null;
 
-        // If Stripe confirms paid, finalize state in our DB (webhook fallback)
         if (paid) {
             const paymentId = session.metadata?.paymentId || null;
             const metaConsultationId = session.metadata?.consultationId || null;
@@ -222,7 +219,7 @@ router.post('/verify-checkout-session', async (req, res) => {
                     const payment = await Payment.findById(paymentId);
                     if (payment && payment.status !== 'completed') {
                         payment.status = 'completed';
-                        payment.transactionId = session.id; // keep checkout session id
+                        payment.transactionId = session.id;
                         payment.gatewayReference = session.payment_intent?.toString() || payment.gatewayReference;
                         if (!payment.consultationId && metaConsultationId) {
                             payment.consultationId = metaConsultationId;
@@ -231,16 +228,15 @@ router.post('/verify-checkout-session', async (req, res) => {
                     }
                 }
 
-                // Idempotently schedule the consultation if present
+                // Idempotently schedule the consultation and unset TTL expiry
                 if (metaConsultationId) {
                     await Consultation.findOneAndUpdate(
                       { _id: metaConsultationId, status: { $ne: 'scheduled' } },
-                      { status: 'scheduled' },
+                      { $set: { status: 'scheduled' }, $unset: { expiresAt: "" } },
                       { new: true }
                     );
                 }
             } catch (finalizeErr) {
-                // Don't fail the verify call for admin UX; just log
                 console.error('Finalize after verify failed:', finalizeErr?.message);
             }
         }
@@ -250,11 +246,11 @@ router.post('/verify-checkout-session', async (req, res) => {
             data: {
                 paid,
                 email,
-                amount: session.amount_total ?? null,     // smallest currency unit
+                amount: session.amount_total ?? null,
                 currency: session.currency ?? 'usd',
                 consultationId: session.metadata?.consultationId || null,
                 paymentId: session.metadata?.paymentId || null,
-                status: session.status,                   // e.g., 'complete'
+                status: session.status,
             }
         });
     } catch (err) {
