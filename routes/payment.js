@@ -369,6 +369,81 @@ router.post('/create-deposit-payment',
       }
   });
 
+
+router.post('/create-deposit-checkout',
+  auth,
+  paymentValidation, // validates applicationId and amount
+  async (req, res) => {
+      try {
+          const { applicationId, amount } = req.body;
+
+          // Validate application belongs to user and the amount matches the deposit
+          const application = await Application.findOne({ _id: applicationId, clientId: req.user._id });
+          if (!application) {
+              return res.status(404).json({ success: false, message: 'Application not found' });
+          }
+          if (amount !== application.depositAmount) {
+              return res.status(400).json({ success: false, message: 'Invalid deposit amount' });
+          }
+
+          // Create payment record
+          const payment = new Payment({
+              clientId: req.user._id,
+              applicationId,
+              amount,
+              currency: 'USD',
+              type: 'deposit',
+              status: 'pending',
+          });
+          await payment.save();
+
+          // Create Checkout Session
+          const session = await stripe.checkout.sessions.create({
+              mode: 'payment',
+              payment_method_types: ['card'],
+              customer_email: req.user.email,
+              line_items: [
+                  {
+                      price_data: {
+                          currency: 'usd',
+                          product_data: {
+                              name: 'Application Deposit',
+                              description: `Deposit for application ${applicationId}`,
+                          },
+                          unit_amount: Math.round(amount * 100),
+                      },
+                      quantity: 1,
+                  },
+              ],
+              metadata: {
+                  type: 'deposit',
+                  paymentId: payment._id.toString(),
+                  applicationId: applicationId.toString(),
+                  clientId: req.user._id.toString(),
+              },
+              success_url: `${process.env.FRONTEND_URL}/payments/deposit-success?session_id={CHECKOUT_SESSION_ID}&applicationId=${applicationId}`,
+              cancel_url: `${process.env.FRONTEND_URL}/payments/deposit-cancelled?applicationId=${applicationId}`,
+          });
+
+          // Link transaction to payment
+          payment.transactionId = session.id;
+          await payment.save();
+
+          return res.status(200).json({
+              success: true,
+              data: { url: session.url, sessionId: session.id, paymentId: payment._id }
+          });
+      } catch (error) {
+          console.error('Create deposit checkout failed:', error);
+          return res.status(500).json({
+              success: false,
+              message: 'Failed to initialize deposit checkout',
+              error: process.env.NODE_ENV === 'development' ? error.message : undefined
+          });
+      }
+  }
+);
+
 // Confirm payment
 router.post('/confirm-payment',
   auth,
@@ -529,8 +604,71 @@ async function handleCheckoutSessionCompleted(session) {
     try {
         const paymentType = session.metadata.type;
 
-        if (paymentType !== 'consultation_fee') {
-            console.log(`Skipping checkout session for type: ${paymentType}`);
+        if (paymentType === 'deposit') {
+            const paymentId = session.metadata.paymentId;
+            const applicationId = session.metadata.applicationId;
+
+            // Update payment status
+            const payment = await Payment.findByIdAndUpdate(
+              paymentId,
+              {
+                  status: 'completed',
+                  transactionId: session.id,
+                  gatewayReference: session.payment_intent,
+              },
+              { new: true }
+            );
+
+            if (!payment) {
+                console.error('Deposit payment not found:', paymentId);
+                return;
+            }
+
+            // Update application stage
+            const application = await Application.findById(applicationId);
+            if (application && application.stage === 'consultation') {
+                application.stage = 'deposit_paid';
+                application.progress = 20;
+                application.timeline.push({
+                    stage: 'deposit_paid',
+                    date: new Date(),
+                    notes: 'Deposit payment received (Checkout)',
+                    updatedBy: payment.clientId
+                });
+                await application.save();
+            }
+
+            // Generate invoice (fetch client for email/name)
+            const client = { _id: payment.clientId, email: session.customer_details?.email || session.customer_email };
+            const invoiceUrl = await generateInvoice({
+                payment,
+                client,
+                invoiceNumber: `INV-${Date.now()}`
+            });
+
+            payment.invoiceUrl = invoiceUrl;
+            payment.invoiceNumber = `INV-${Date.now()}`;
+            await payment.save();
+
+            // Optional: send confirmation email using your existing email util
+            try {
+                await sendEmail({
+                    to: client.email,
+                    subject: 'Payment Confirmation - Migrantifly',
+                    template: 'payment-confirmation',
+                    data: {
+                        clientName: session.customer_details?.name || 'Client',
+                        amount: payment.amount,
+                        currency: payment.currency,
+                        invoiceUrl,
+                        paymentType: payment.type
+                    }
+                });
+            } catch (emailErr) {
+                console.error('Failed to send deposit confirmation email:', emailErr?.message);
+            }
+
+            console.log(`✅ Deposit completed for application ${applicationId}`);
             return;
         }
 
