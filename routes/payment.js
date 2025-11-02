@@ -382,7 +382,7 @@ router.post('/create-deposit-checkout',
           if (!application) {
               return res.status(404).json({ success: false, message: 'Application not found' });
           }
-          if (amount !== application.depositAmount) {
+          if (amount !== 500) {
               return res.status(400).json({ success: false, message: 'Invalid deposit amount' });
           }
 
