@@ -1,6 +1,6 @@
 
 const express = require('express');
-const { Application, Document, Payment, Agreement, Notification } = require('../models');
+const { Application, Document, Payment, Agreement, Notification, User } = require('../models');
 const { auth, authorize } = require('../middleware/auth');
 
 const router = express.Router();
