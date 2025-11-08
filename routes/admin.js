@@ -396,6 +396,52 @@ router.get('/system-health',
     }
 );
 
+// Change user role
+router.patch('/users/:id/role',
+    auth,
+    authorize('admin'),
+    auditLogger('change_user_role', 'user'),
+    async (req, res) => {
+        try {
+            const userId = req.params.id;
+            const { role } = req.body;
+
+            // Validate role
+            if (!['admin', 'adviser', 'client'].includes(role)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid role'
+                });
+            }
+
+            const user = await User.findByIdAndUpdate(
+                userId,
+                { role },
+                { new: true, runValidators: true }
+            ).select('-password');
+
+            if (!user) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'User not found'
+                });
+            }
+
+            res.status(200).json({
+                success: true,
+                message: 'User role updated successfully',
+                data: user
+            });
+        } catch (error) {
+            res.status(500).json({
+                success: false,
+                message: 'Error updating user role',
+                error: error.message
+            });
+        }
+    }
+);
+
 module.exports = router;
 
 /**
