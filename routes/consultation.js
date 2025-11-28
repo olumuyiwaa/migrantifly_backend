@@ -540,6 +540,127 @@ router.patch('/:id/complete',
   }
 );
 
+// Edit consultation details (admin/adviser only)
+router.patch('/:id/edit',
+  auth,
+  authorize('admin', 'adviser'),
+  async (req, res) => {
+      try {
+          const consultationId = req.params.id;
+
+          const {
+              preferredDate,   // YYYY-MM-DD
+              preferredTime,   // HH:MM
+              duration,
+              method,
+              type,
+              notes,
+              meetingLink,
+              rescheduleReason
+          } = req.body;
+
+          let consultation = await Consultation.findById(consultationId);
+
+          if (!consultation) {
+              return res.status(404).json({
+                  success: false,
+                  message: 'Consultation not found'
+              });
+          }
+
+          // Cannot edit completed/cancelled consultations
+          if (['completed', 'cancelled'].includes(consultation.status)) {
+              return res.status(400).json({
+                  success: false,
+                  message: 'This consultation cannot be edited'
+              });
+          }
+
+          // ================================
+          // VALIDATE DATE + TIME (IF PROVIDED)
+          // ================================
+
+          let newScheduledDate = null;
+          if (preferredDate && preferredTime) {
+
+              // Validate formats
+              if (!/^\d{4}-\d{2}-\d{2}$/.test(preferredDate)) {
+                  return res.status(400).json({
+                      success: false,
+                      message: 'Invalid date format. Use YYYY-MM-DD'
+                  });
+              }
+
+              if (!/^\d{2}:\d{2}$/.test(preferredTime)) {
+                  return res.status(400).json({
+                      success: false,
+                      message: 'Invalid time format. Use HH:MM'
+                  });
+              }
+
+              newScheduledDate = new Date(`${preferredDate}T${preferredTime}:00Z`);
+
+              if (newScheduledDate < new Date()) {
+                  return res.status(400).json({
+                      success: false,
+                      message: 'Cannot schedule consultation in the past'
+                  });
+              }
+
+              const endTime = new Date(newScheduledDate.getTime() + (duration || consultation.duration) * 60000);
+
+              // Check slot availability
+              const slotAvailable = await isSlotAvailable(newScheduledDate, endTime);
+              if (!slotAvailable) {
+                  return res.status(409).json({
+                      success: false,
+                      message: 'This new slot is already booked',
+                      code: 'SLOT_UNAVAILABLE'
+                  });
+              }
+          }
+
+          // ================================
+          // UPDATE FIELDS
+          // ================================
+          let wasRescheduled = false;
+
+          if (newScheduledDate) {
+              consultation.rescheduledFrom = consultation._id;
+              consultation.rescheduleReason = rescheduleReason || 'Schedule updated';
+              consultation.scheduledDate = newScheduledDate;
+              wasRescheduled = true;
+          }
+
+          if (duration) consultation.duration = duration;
+          if (method) consultation.method = method;
+          if (type) consultation.type = type;
+          if (notes !== undefined) consultation.notes = notes;
+          if (meetingLink) consultation.meetingLink = meetingLink;
+
+          if (wasRescheduled) {
+              consultation.status = 'rescheduled';
+          }
+
+          await consultation.save();
+
+          res.status(200).json({
+              success: true,
+              message: 'Consultation updated successfully',
+              data: consultation
+          });
+
+      } catch (error) {
+          res.status(500).json({
+              success: false,
+              message: 'Error updating consultation',
+              error: error.message
+          });
+      }
+  }
+);
+
+
 module.exports = router;
 
 /**
@@ -648,7 +769,61 @@ module.exports = router;
  *       401: { description: Unauthorized }
  *       403: { description: Forbidden }
  *       404: { description: Not found }
+ * /api/consultation/{id}/edit:
+ *   patch:
+ *     tags: [Consultations]
+ *     summary: Edit an existing consultation (admin/adviser)
+ *     description: >
+ *       Allows an admin or adviser to modify consultation details such as
+ *       scheduled date, time, method, meeting link, or notes.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the consultation.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               scheduledDate:
+ *                 type: string
+ *                 format: date-time
+ *                 example: "2025-02-10T14:00:00Z"
+ *               method:
+ *                 type: string
+ *                 enum: ["zoom", "phone", "in-person", "google-meet"]
+ *               duration:
+ *                 type: integer
+ *                 example: 60
+ *               meetingLink:
+ *                 type: string
+ *                 example: "https://zoom.us/xyz"
+ *               notes:
+ *                 type: string
+ *                 example: "Updated consultation details."
+ *               rescheduleReason:
+ *                 type: string
+ *                 example: "Client requested new time"
+ *     responses:
+ *       200:
+ *         description: Consultation updated successfully
+ *       400:
+ *         description: Invalid data or unavailable time slot
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Consultation not found
  */
+
 //
 // PATCH /:id/cancel endpoint handles cancellations
 //
